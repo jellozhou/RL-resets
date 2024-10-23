@@ -137,7 +137,7 @@ class SimpleGridEnvResets(Env):
     #     if 'reset_rate' in options:
     #         self.reset_rate = options['reset_rate']
     #         # self.reset_rate = self.parse_state_option('reset_rate', options)
-    
+
     def step(self, action: int):
         """
         Take a step in the environment.
@@ -145,6 +145,9 @@ class SimpleGridEnvResets(Env):
 
         #assert action in self.action_space
         self.agent_action = action
+
+        # whether the agent reset in the last step
+        self.reset_last_step = False
 
         # Get the current position of the agent
         row, col = self.agent_xy
@@ -158,6 +161,7 @@ class SimpleGridEnvResets(Env):
         else:
             # reset back to the origin
             target_row, target_col = self.start_xy
+            self.reset_last_step = True
 
         # Compute the reward
         self.reward = self.get_reward(target_row, target_col)
@@ -169,10 +173,13 @@ class SimpleGridEnvResets(Env):
 
         self.n_iter += 1
 
-        # if self.render_mode == "human":
-        self.render()
+        if self.render_mode == "human":
+            self.render()
 
-        return self.get_obs(), self.reward, self.done, False, self.get_info()
+        info = self.get_info()
+        info['reset_last_step'] = self.reset_last_step
+
+        return self.get_obs(), self.reward, self.done, False, info
     
     def parse_obstacle_map(self, obstacle_map) -> np.ndarray:
         """
@@ -261,6 +268,11 @@ class SimpleGridEnvResets(Env):
         """
         return self.agent_xy == self.goal_xy
 
+    # function to determine whether the agent is immediately next to the goal
+    def almost_goal(self) -> bool:
+        (x, y) = self.agent_xy
+        return (x+1, y) == self.goal_xy or (x-1, y) == self.goal_xy or (x, y+1) == self.goal_xy or (x, y-1) == self.goal_xy
+
     def is_free(self, row: int, col: int) -> bool:
         """
         Check if a cell is free.
@@ -292,7 +304,7 @@ class SimpleGridEnvResets(Env):
     def get_info(self) -> dict:
         return {
             'agent_xy': self.agent_xy,
-            'n_iter': self.n_iter,
+            'n_iter': self.n_iter
         }
 
     def render(self):
