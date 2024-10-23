@@ -54,14 +54,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--reset_rate', type=float, required=True)
     parser.add_argument('--num_episodes', type=int, default=100)
-    # parser.add_argument('--render_mode', type=str, default=None)
-    # parser.add_argument('--trial', type=int, required=True)
+    parser.add_argument('--render_mode', type=str, default=None)
+    # there is some issue with stdin bool arguments
+    parser.add_argument('--qlearn_after_resets',type=str, default='True')
+
     args = parser.parse_args()
     reset_rate = args.reset_rate
     num_episodes = args.num_episodes
-    # render_mode_arg = args.render_mode
-    # trial = args.trial
-
+    # parse render mode argument
+    if args.render_mode == "None":
+        render_mode_arg = None
+    else:
+        render_mode_arg = args.render_mode # all other options have str inputs
+    
+    if args.qlearn_after_resets == "True":
+        qlearn_after_resets = True
+    elif args.qlearn_after_resets == "False":
+        qlearn_after_resets = False
+    
     total_reward_vec = np.empty(num_episodes)
     total_epilength_vec = np.empty(num_episodes)
     total_regret_vec = np.empty(num_episodes)
@@ -69,7 +79,7 @@ def main():
     env = gym.make(
         'SimpleGridReset-v0', 
         obstacle_map=create_array(N, obstacle_prob), 
-        render_mode=None
+        render_mode=render_mode_arg
     )
     
     actions = list(env.MOVES.keys())
@@ -81,6 +91,7 @@ def main():
         # initialize reward, episode length, regret
         reward_this_episode = 0
         epilength_this_episode = 0
+        # is there any value in calculating the step-wise integrated regret?
         regret_this_episode = 0
 
         # two ways to set up exploration vs exploitation strategy
@@ -98,23 +109,35 @@ def main():
         while not done:
             a = q.chooseAction(s)
             s_prime, r, done, truncated, info = env.step(a)
-            # print(done)
-            q.learn(s, a, r, s_prime)
+            reset_last_step = info['reset_last_step']
+            # print(reset_last_step)
+
+            # inner loop to not learn after resetting, only if the flag is there
+            # only skip learning step -- the reward, length, and regret calculations can remain
+            if reset_last_step == True:
+                if qlearn_after_resets == True:
+                    q.learn(s, a, r, s_prime)
+            elif reset_last_step == False:
+                q.learn(s, a, r, s_prime)
             s = s_prime
             reward_this_episode += r
             epilength_this_episode += 1
-            # regret_this_episode += new regret
+            # optimal reward per episode: calculate manually
+            optimal_reward_this_step = 0
+            if env.almost_goal():
+                optimal_reward_this_step = 1
+            regret_this_episode += (optimal_reward_this_step - r)
 
             if done:
                 total_reward_vec[n_epi] = reward_this_episode
                 total_epilength_vec[n_epi] = epilength_this_episode
-                # update total_regret_vec
+                total_regret_vec[n_epi] = regret_this_episode
                 break
-                
+
     # save stored vectors to feed into bash script, which then writes them to one CSV file
-    np.savetxt("total_reward_vec.npy", total_reward_vec)
-    np.savetxt("total_epilength_vec.npy", total_epilength_vec)
-    # add: savetxt for regret
+    np.save("total_reward_vec.npy", total_reward_vec)
+    np.save("total_epilength_vec.npy", total_epilength_vec)
+    np.save("total_regret_vec.npy", total_regret_vec)
     env.close()
 
 if __name__ == '__main__':

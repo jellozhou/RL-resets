@@ -1,40 +1,69 @@
-# doesn't work yet
-
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse
+import re
 
 # parse arguments from bash script
 parser = argparse.ArgumentParser()
-parser.add_argument('--num_episodes', type=int, default=100)
+parser.add_argument('--filename', type=str, default=None)
 args = parser.parse_args()
-num_episodes = args.num_episodes
+filename = args.filename
 
-episodes_array = np.linspace(1, num_episodes, num_episodes)
-reset_rate_array = np.loadtxt('results/parameter_sweep_reset_rates_20241012_212243.csv')
-total_epilengths_array = np.loadtxt('results/parameter_sweep_epilengths_20241012_212243.csv', delimiter=',')
-total_rewards_array = np.loadtxt('results/parameter_sweep_rewards_20241012_212243.csv', delimiter=',')
-# print(reset_rate_array.shape)
-# print(total_epilengths_array.shape)
+# debug: specify a filename
+# filename = "results/resetrate_0.01_qlearnreset_False_numepisodes_10.csv"
 
-# average the total arrays over each unique resetting rate
-unique_rates, indices = np.unique(reset_rate_array, return_inverse=True)
-avg_epilengths_array = np.empty_like(episodes_array)
-avg_rewards_array = np.empty_like(episodes_array)
+if filename.endswith('.csv'):
+    filename_stripped = filename[:-4]  # Remove exactly 4 characters from the end
+filename_stripped = filename_stripped.split('/')[-1]
 
-for i, rate in enumerate(unique_rates):
-    avg_epilengths_array[i] = np.mean(total_epilengths_array[indices == i,:])
-    print(avg_epilengths_array.shape)
-    avg_rewards_array[i] = np.mean(total_rewards_array[indices == i,:])
+# parse variables from filename, return a dict
+def extract_variables(filename):
+    parts = filename.split('_')   
+    # print(parts)
+    variables = {}
+
+    # loop through the parts two at a time (variable and value)
+    for i in range(0, len(parts) - 1, 2):
+        variable = parts[i]
+        value = parts[i + 1]      
+        # convert variables to numeric values
+        if re.match(r'^-?\d+(\.\d+)?$', value):
+            value = float(value) if '.' in value else int(value)      
+        # add the variable-value pair to the dictionary
+        variables[variable] = value 
+    return variables
+
+avg_array = np.loadtxt(filename)
+N_trials = int(avg_array.size / 3)
+
+# divide into reward, episode length, regret arrays
+avg_reward_arr = avg_array[:N_trials]
+avg_epilength_arr = avg_array[N_trials:2*N_trials]
+avg_regret_arr = avg_array[2*N_trials:]
+
+# construct episode number array
+episode_num = np.linspace(1, avg_reward_arr.size, avg_reward_arr.size)
 
 plt.figure()
-plt.plot(episodes_array, avg_epilengths_array)
+plt.plot(episode_num, avg_reward_arr)
+plt.title(extract_variables(filename_stripped))
 plt.xlabel("Episode number")
-plt.ylabel("Average episode step length")
-plt.savefig("figs/episode_length_versus_number.png")
+plt.ylabel("Average reward per episode")
+plt.savefig("figs/avg_reward_"+filename_stripped+".png")
+# plt.show()
 
 plt.figure()
-plt.plot(episodes_array, avg_rewards_array)
+plt.plot(episode_num, avg_epilength_arr)
+plt.title(extract_variables(filename_stripped))
 plt.xlabel("Episode number")
-plt.ylabel("Total reward per episode")
-plt.savefig("figs/episode_reward_versus_number.png")
+plt.ylabel("Average length per episode")
+plt.savefig("figs/avg_epilength_"+filename_stripped+".png")
+# plt.show()
+
+plt.figure()
+plt.plot(episode_num, avg_regret_arr)
+plt.title(extract_variables(filename_stripped))
+plt.xlabel("Episode number")
+plt.ylabel("Average regret per episode")
+plt.savefig("figs/avg_regret_"+filename_stripped+".png")
+# plt.show()
