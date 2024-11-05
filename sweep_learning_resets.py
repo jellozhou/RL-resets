@@ -3,14 +3,16 @@ import numpy as np
 import subprocess
 
 # sweep over the following (can increase number of hyperparameters)
-reset_rates = [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06]  # first just fix it to be 0 for the hyperparameter sweep
+# reset_rates = [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06]  # first just fix it to be 0 for the hyperparameter sweep
+reset_rates = [0.05]
 # learning_rates = [0.0002, 0.0003, 0.0004, 0.0005, 0.0006]
 learning_rates = [0.0005]
 gammas = [0.965]  # optimize over learning rates first, then gamma
 # epsilons = [0.05, 0.06, 0.07, 0.08, 0.09, 0.10]
 epsilons = [0.06]
 # qlearn_after_resets = [True, False]
-qlearn_after_resets = [False]
+qlearn_after_resets = [True]
+reset_decay = "twomodes" # options: "none", "twomodes", "linear"
 
 # parameters to keep fixed
 num_episodes = 300
@@ -40,9 +42,9 @@ for qlearn_after_resets_value in qlearn_after_resets:
         for gamma in gammas:
             for learning_rate in learning_rates:
                 for reset_rate in reset_rates:
-                    print(f"Running for reset_rate={reset_rate}, learning_rate={learning_rate}, gamma={gamma}, epsilon={epsilon}, qlearnreset={qlearn_after_resets_value}")
+                    print(f"Running for reset_rate={reset_rate}, learning_rate={learning_rate}, gamma={gamma}, epsilon={epsilon}, qlearnreset={qlearn_after_resets_value}, resetdecay={reset_decay}")
                     
-                    output_file_avg = f"results/resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_qlearnreset_{qlearn_after_resets_value}_numepisodes_{num_episodes}.csv"
+                    output_file_avg = f"results/resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_numepisodes_{num_episodes}.csv"
                     with open(output_file_avg, 'w') as f:
                         pass  # wipe the average output file
                     
@@ -53,14 +55,14 @@ for qlearn_after_resets_value in qlearn_after_resets:
                     
                     # loop over trials
                     for trial in range(1, N_trials + 1):
-                        output_file = f"results/resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_qlearnreset_{qlearn_after_resets_value}_numepisodes_{num_episodes}_trial_{trial}.csv"
+                        output_file = f"results/resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_numepisodes_{num_episodes}_trial_{trial}.csv"
                         with open(output_file, 'w') as f:
                             pass  # wipe individual output file
 
                         print(f"  Trial {trial}...")
 
                         # run python script & check for errors
-                        cmd = f"python learning_with_resets.py --reset_rate {reset_rate} --learning_rate {learning_rate} --gamma {gamma} --epsilon {epsilon} --num_episodes {num_episodes} --render_mode {render_mode} --qlearn_after_resets {qlearn_after_resets_value}"
+                        cmd = f"python learning_with_resets.py --reset_rate {reset_rate} --learning_rate {learning_rate} --gamma {gamma} --epsilon {epsilon} --reset_decay {reset_decay} --num_episodes {num_episodes} --render_mode {render_mode} --qlearn_after_resets {qlearn_after_resets_value}"
                         try:
                             run_command(cmd)
                         except RuntimeError as e:
@@ -101,7 +103,7 @@ for qlearn_after_resets_value in qlearn_after_resets:
                     total_regret_across_episodes = np.sum(regret_vec)
                     # append parameter values and total regret to the log file
                     with open(log_file, 'a') as f:
-                        f.write(f"{reset_rate},{learning_rate},{gamma},{epsilon},{qlearn_after_resets_value},{total_regret_across_episodes}\n")
+                        f.write(f"{reset_rate},{learning_rate},{gamma},{epsilon},{qlearn_after_resets_value},{reset_decay},{total_regret_across_episodes}\n")
 
                     # call plotting script
                     cmd = f"python plotting.py --filename {output_file_avg}"
