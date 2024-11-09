@@ -1,5 +1,6 @@
 import math
 import random
+import collections
 
 # source: partially from https://github.com/vmayoral/basic_reinforcement_learning/blob/master/tutorial1/qlearn.py
 class QLearn:
@@ -32,6 +33,9 @@ class QLearn:
         # Actions available in the environment
         self.actions = actions
 
+        # history of stability
+        self.prev_max_q_indices = None # previous Q table
+
     def getQ(self, state, action):
         """Get Q value for a state-action pair.
 
@@ -62,6 +66,36 @@ class QLearn:
             # Alpha determines how much importance we give to the
             # new value compared to the old value.
             self.q[(state, action)] = oldv + self.learning_rate * (target - oldv)
+
+
+    def QStable(self):
+        """Check if the relative maximum Q-value indices for all states are the same as the previous episode."""
+        if self.prev_max_q_indices is None:
+            return False  # No previous max indices to compare to in the first episode
+        
+        current_max_q_indices = {}
+        
+        # Get the index of the maximum Q-value for each state
+        for state in self.q.keys():
+            q_values = [self.getQ(state, a) for a in self.actions]
+            max_q_index = q_values.index(max(q_values))  # Find the action with the max Q-value
+            current_max_q_indices[state] = max_q_index
+
+        # Compare the current max indices with the previous ones
+        for state, max_index in current_max_q_indices.items():
+            if self.prev_max_q_indices.get(state) != max_index:
+                return False  # The relative max Q-value index has changed for this state
+
+        # If all states have the same relative max Q-value index, we consider the Q-table stable
+        return True
+
+    # def QStableForN(self, n):
+    #     """Check if QStable has returned True for the past n episodes."""
+    #     return len(self.stability_history) == n and all(self.stability_history)
+
+    # def updateStability(self):
+    #     """Update stability history after each episode."""
+    #     self.stability_history.append(self.QStable())
 
     def chooseAction(self, state):
         """Epsilon-Greedy approach for action selection."""
@@ -94,3 +128,13 @@ class QLearn:
         # Learn the Q-Value based on current reward and future
         # expected rewards.
         self.learnQ(state1, action1, reward, reward + self.gamma * maxqnew)
+
+    def save_max_q_indices(self):
+        """Save the relative maximum Q-value indices for each state."""
+        self.prev_max_q_indices = {}
+        
+        # Store the relative maximum Q-value indices for each state
+        for state in self.q.keys():
+            q_values = [self.getQ(state, a) for a in self.actions]
+            max_q_index = q_values.index(max(q_values))
+            self.prev_max_q_indices[state] = max_q_index
