@@ -1,4 +1,5 @@
 import collections
+from collections import deque
 import random
 import math
 import os
@@ -24,6 +25,7 @@ from learning_algorithms.QLearn import QLearn
 # learning_rate = 0.0005 # alpha
 # gamma         = 0.98 # closer to 1?
 N = 50 # box side length
+# n_stable = 20 # sweep over!
 # reset_rate = 0.01 # parameter sweep
 obstacle_prob = 0. # prob that cell in box initialized as obstacle
 # max_exp_rate = 0.08 # exploration vs exploitation rate, not sure if this or the linear annealing is better
@@ -48,15 +50,6 @@ def create_array(N, obstacle_prob):
     # Convert the array to the string form
     return [''.join(map(str, row)) for row in arr]
 
-# various decay functions to actually write
-def linear_decay(n_epi):
-    # return logic
-    return None
-
-def twomode_decay(n_epi):
-    # return logic
-    return None
-
 def main():
 
     # parse command-line arguments
@@ -70,6 +63,7 @@ def main():
     # there is some issue with stdin bool arguments
     parser.add_argument('--qlearn_after_resets',type=str, default='True')
     parser.add_argument('--reset_decay', type=str, default='none')
+    parser.add_argument('--n_stable', type=int, default=20)
 
     args = parser.parse_args()
     reset_rate = args.reset_rate
@@ -89,10 +83,18 @@ def main():
         qlearn_after_resets = False
 
     reset_decay = args.reset_decay
+    n_stable = args.n_stable
     
     total_reward_vec = np.empty(num_episodes)
     total_epilength_vec = np.empty(num_episodes)
     total_regret_vec = np.empty(num_episodes)
+
+    # initialize reward, regret, epilength vector filenames before we modify the reset_rate, epsilon, etc
+    total_reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
+    total_epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
+    total_regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
+    total_training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
+    ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
 
     env = gym.make(
         'SimpleGridReset-v0', 
@@ -100,9 +102,12 @@ def main():
         render_mode=render_mode_arg
     )
     
-    actions = list(env.MOVES.keys())
+    actions = list(env.unwrapped.MOVES.keys())
     q = QLearn(actions, epsilon, learning_rate, gamma)
+    training_done = False # whether, at the given episode, training has completed
+    stable_window = deque(maxlen=n_stable)
 
+    training_done_epi = -1
     for n_epi in range(num_episodes):
         print("Current episode number: ", n_epi)
         # initialize reward, episode length, regret
@@ -112,21 +117,23 @@ def main():
         regret_this_episode = 0
 
         # set epsilon values according to the decay option
-        if reset_decay == 'none':
-            q.epsilon = epsilon # no decay
-        elif reset_decay == 'linear':
-            q.epsilon == 0 # edit!! add the correct scheme!!
-        elif reset_decay == 'twomodes':
-            if epilength_this_episode < 40:
-                q.epsilon = epsilon # make this logic more precise! 
-            else:
-                q.epsilon = 0
-
+        q.epsilon = epsilon # no annealing yet
         # q.epsilon = max(0.01, max_exp_rate - 0.01*(n_epi/200)) # if annealing
+
+        # decay in reset rates
+        if reset_decay == 'linear':
+            reset_rate = 0.0 # edit!! add the correct scheme!!
+            q.epsilon = 0.0
+        elif reset_decay == 'twomodes':
+            if training_done == True:
+                reset_rate = 0.0
+                q.epsilon = 0.0 # also turn off exploration
 
         s, _ = env.reset(options={'start_loc':start_s, 'goal_loc':goal_s, 'reset_rate':reset_rate})
         # optimal reward determined by start loc and goal loc alone
-        rwd_opt = gamma**(np.absolute(goal_x - start_x) + np.absolute(goal_y - start_y)) # reward 1 at the end state -- multiply by discount factor
+        # rwd_opt = gamma**(np.absolute(goal_x - start_x) + np.absolute(goal_y - start_y)) # reward 1 at the end state -- multiply by discount factor
+        # change optimal reward to be literally the shortest path in taxicab
+        rwd_opt = -1*(np.absolute(goal_x - start_x) + np.absolute(goal_y - start_y))
         # col = s % N
         # row = s // N
         done = False
@@ -146,18 +153,47 @@ def main():
                 q.learn(s, a, r, s_prime)
             s = s_prime
             epilength_this_episode += 1
-            reward_this_episode += r * gamma**(epilength_this_episode) # DISCOUNTED reward is a more accurate metric
+            # reward_this_episode += r * gamma**(epilength_this_episode) # DISCOUNTED reward is a more accurate metric
+            reward_this_episode -= 1 # simple reward fn. decreases with #steps
 
             if done:
                 total_reward_vec[n_epi] = reward_this_episode
                 total_epilength_vec[n_epi] = epilength_this_episode
-                total_regret_vec[n_epi] = rwd_opt - reward_this_episode
+                regret_this_episode = rwd_opt - reward_this_episode
+                total_regret_vec[n_epi] = regret_this_episode
                 break
 
+        # check if Q-values are stable after this given episode
+        stable_now = q.QStable()
+        stable_window.append(stable_now)
+
+        # print(stable_now)
+        # print(all(stable_window))
+
+        if len(stable_window) == n_stable and all(stable_window):
+            if not training_done:
+                training_done = True
+                training_done_epi = n_epi-n_stable
+                print(f"Training completed at episode {training_done_epi}")
+
+        # if q.QStable():
+        #     # print(training_done)
+        #     if training_done == False: # first such time
+        #         training_done_epi = n_epi
+        #         training_done = True
+        #         print(training_done_epi)
+
+        # save the max q indices to compare Q tables
+        q.save_max_q_indices()
+
     # save stored vectors to feed into bash script, which then writes them to one CSV file
-    np.save("total_reward_vec.npy", total_reward_vec)
-    np.save("total_epilength_vec.npy", total_epilength_vec)
-    np.save("total_regret_vec.npy", total_regret_vec)
+    np.save(total_reward_vec_file, total_reward_vec)
+    np.save(total_epilength_vec_file, total_epilength_vec)
+    np.save(total_regret_vec_file, total_regret_vec)
+    np.save(total_training_done_epi_file, training_done_epi)
+    # save the ending regret
+    np.save(ending_regret_file, regret_this_episode) # ending regret is the last regret_this_episode
+
     env.close()
 
 if __name__ == '__main__':

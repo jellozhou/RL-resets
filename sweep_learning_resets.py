@@ -3,21 +3,22 @@ import numpy as np
 import subprocess
 
 # sweep over the following (can increase number of hyperparameters)
-reset_rates = [0.00, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07, 0.08]  # first just fix it to be 0 for the hyperparameter sweep
+reset_rates = np.linspace(0.039, 0.07, 10)
+# reset_rates = [0.0375, 0.04, 0.04, 0.0425, 0.0425, 0.045, 0.045, 0.0475, 0.0475]  # first just fix it to be 0 for the hyperparameter sweep
 # reset_rates = [0.03]
 # learning_rates = [0.0002, 0.0003, 0.0004, 0.0005, 0.0006]
 learning_rates = [0.0005]
 gammas = [0.965]  # optimize over learning rates first, then gamma
 # epsilons = [0.05, 0.06, 0.07, 0.08, 0.09, 0.10]
 epsilons = [0.06]
-n_stables = [20] # number of stable Q-tables to turn off reset
+n_stables = [30] # number of stable Q-tables to turn off reset
 # qlearn_after_resets = [True, False]
 qlearn_after_resets = [True]
 reset_decay = "twomodes" # options: "none", "twomodes", "linear"
 
 # parameters to keep fixed
 num_episodes = 300
-N_trials = 50
+N_trials = 100
 render_mode = 'None'
 
 # create results directory
