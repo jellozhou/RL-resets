@@ -7,15 +7,21 @@ import time
 # sweep over the following (can increase number of hyperparameters)
 # reset_rates = np.linspace(0.039, 0.07, 10)
 # reset_rates = np.linspace(0.0101, 0.02, 100)
-reset_rates = np.linspace(0.0201,0.05,300)
+# reset_rates = np.linspace(0.0201,0.05,300)
+reset_rates = [0.0001]
 learning_rates = [0.0005]
 gammas = [0.965]
 epsilons = [0.06]
 n_stables = [30]
 qlearn_after_resets = [True]
 reset_decay = "twomodes"
+resetting_mode = "memory" # or memory
+
+# WRITE THE RESETTING MORE INTO THE FILE NAME!
 
 # parameters to keep fixed
+# num_episodes = 300
+# N_trials = 100
 num_episodes = 300
 N_trials = 100
 render_mode = 'None'
@@ -41,9 +47,9 @@ def run_command(cmd):
 
 # function to execute a single combination of parameters
 def run_sweep(reset_rate, learning_rate, gamma, epsilon, n_stable_value, qlearn_after_resets_value):
-    print(f"Running for reset_rate={reset_rate}, learning_rate={learning_rate}, gamma={gamma}, epsilon={epsilon}, qlearnreset={qlearn_after_resets_value}, resetdecay={reset_decay}, n_stable={n_stable_value}")
+    print(f"Running for reset_rate={reset_rate}, learning_rate={learning_rate}, gamma={gamma}, epsilon={epsilon}, qlearnreset={qlearn_after_resets_value}, resetdecay={reset_decay}, n_stable={n_stable_value}, resetting_mode={resetting_mode}")
     
-    output_file_avg = f"results/resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_numepisodes_{num_episodes}.csv"
+    output_file_avg = f"results/resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}_numepisodes_{num_episodes}.csv"
     with open(output_file_avg, 'w') as f:
         pass  # wipe the average output file
 
@@ -53,13 +59,13 @@ def run_sweep(reset_rate, learning_rate, gamma, epsilon, n_stable_value, qlearn_
     training_done_epi_sum = 0
 
     for trial in range(1, N_trials + 1):
-        output_file = f"results/resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_numepisodes_{num_episodes}_trial_{trial}.csv"
+        output_file = f"results/resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}_numepisodes_{num_episodes}_trial_{trial}.csv"
         with open(output_file, 'w') as f:
             pass  # wipe individual output file
 
         print(f"  Trial {trial}...")
 
-        cmd = f"python learning_with_resets.py --reset_rate {reset_rate} --learning_rate {learning_rate} --gamma {gamma} --epsilon {epsilon} --n_stable {n_stable_value} --reset_decay {reset_decay} --num_episodes {num_episodes} --render_mode {render_mode} --qlearn_after_resets {qlearn_after_resets_value}"
+        cmd = f"python learning_with_resets.py --reset_rate {reset_rate} --learning_rate {learning_rate} --gamma {gamma} --epsilon {epsilon} --n_stable {n_stable_value} --reset_decay {reset_decay} --resetting_mode {resetting_mode} --num_episodes {num_episodes} --render_mode {render_mode} --qlearn_after_resets {qlearn_after_resets_value}"
         try:
             run_command(cmd)
         except RuntimeError as e:
@@ -67,10 +73,10 @@ def run_sweep(reset_rate, learning_rate, gamma, epsilon, n_stable_value, qlearn_
             return
 
         # read vectors
-        reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}.npy"
-        epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}.npy"
-        regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}.npy"
-        training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}.npy"
+        reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
 
         # reward_vec = np.load('total_reward_vec.npy', allow_pickle=True)
         # epilength_vec = np.load('total_epilength_vec.npy', allow_pickle=True)

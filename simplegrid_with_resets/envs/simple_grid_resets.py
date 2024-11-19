@@ -50,7 +50,6 @@ class SimpleGridEnvResets(Env):
         # a reset SHOULD NOT be in the set of moves, since it is not a policy but a property of the environment
     }
 
-    # initialze reset_rate to default if no options provided
     def __init__(self,     
         obstacle_map: str | list[str],
         render_mode: str | None = None
@@ -84,7 +83,6 @@ class SimpleGridEnvResets(Env):
         self.render_mode = render_mode
         self.fps = self.metadata['render_fps']
 
-        # self.reset_rate = default_reset_rate
 
 # start a new episode
     def reset(
@@ -110,6 +108,8 @@ class SimpleGridEnvResets(Env):
         self.start_xy = self.parse_state_option('start_loc', options)
         self.goal_xy = self.parse_state_option('goal_loc', options)
         self.reset_rate = self.parse_state_option('reset_rate', options)
+        # self.resetting_mode = self.parse_state_option('resetting_mode', options) # resetting mode
+        # self.position_reset = self.parse_state_option('position_reset', options) # position reset = true/false
 
         # initialise internal vars
         self.agent_xy = self.start_xy
@@ -125,18 +125,6 @@ class SimpleGridEnvResets(Env):
         self.render()
 
         return self.get_obs(), self.get_info()
-
-# get options: EXTRANEOUS
-    # def set_options(self, options: dict = dict()):
-    #     """
-    #     Set environment-specific options such as start and goal positions.
-    #     """
-    #     self.start_xy = self.parse_state_option('start_loc', options)
-    #     self.goal_xy = self.parse_state_option('goal_loc', options)
-    #     # Set the reset_rate from options, if provided
-    #     if 'reset_rate' in options:
-    #         self.reset_rate = options['reset_rate']
-    #         # self.reset_rate = self.parse_state_option('reset_rate', options)
 
     def step(self, action: int):
         """
@@ -155,13 +143,23 @@ class SimpleGridEnvResets(Env):
 
         # Compute the target position of the agent
         # reset back to starting state at rate r
+        # if self.position_reset == True:
         if random.uniform(0, 1) > self.reset_rate:
             target_row = row + dx
             target_col = col + dy
         else:
-            # reset back to the origin
-            target_row, target_col = self.start_xy
+            target_row, target_col = self.start_xy # reset to origin
             self.reset_last_step = True
+
+            # if resetting_mode == 'position': # only position-based resetting
+            #     # reset back to the origin
+            #     target_row, target_col = self.start_xy
+            #     self.reset_last_step = True
+            # elif resetting_mode == 'memory': 
+            #     # reset value functions
+            # elif resetting_mode == 'both':
+            #     # reset both position and value functions
+            #     target_row, target_col = self.start_xy
 
         # Compute the reward
         self.reward = self.get_reward(target_row, target_col)
@@ -220,6 +218,12 @@ class SimpleGridEnvResets(Env):
                 return self.to_xy(state) # converts to row and col position
             elif isinstance(state, float): # float: is reset rate
                 return state # directly return the reset rate
+
+            # elif isinstance(state, str): # string: is 'resetting mode'
+            #     return state # directly return the resetting mode string
+            # elif isinstance(state, bool): # bool: position reset
+            #     return state
+
             elif isinstance(state, tuple):
                 return state
             else:
@@ -269,6 +273,7 @@ class SimpleGridEnvResets(Env):
         return self.agent_xy == self.goal_xy
 
     # function to determine whether the agent is immediately next to the goal
+    # this isn't actually useful, but i'll keep it there just in case
     def almost_goal(self) -> bool:
         (x, y) = self.agent_xy
         return (x+1, y) == self.goal_xy or (x-1, y) == self.goal_xy or (x, y+1) == self.goal_xy or (x, y-1) == self.goal_xy

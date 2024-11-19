@@ -64,6 +64,7 @@ def main():
     parser.add_argument('--qlearn_after_resets',type=str, default='True')
     parser.add_argument('--reset_decay', type=str, default='none')
     parser.add_argument('--n_stable', type=int, default=20)
+    parser.add_argument('--resetting_mode', type=str, required=True) # resetting mode -- position / memory
 
     args = parser.parse_args()
     reset_rate = args.reset_rate
@@ -84,17 +85,20 @@ def main():
 
     reset_decay = args.reset_decay
     n_stable = args.n_stable
+    resetting_mode = args.resetting_mode
+    # if resetting_mode == "position":
+    #     reset_rate_position = reset_rate
     
     total_reward_vec = np.empty(num_episodes)
     total_epilength_vec = np.empty(num_episodes)
     total_regret_vec = np.empty(num_episodes)
 
     # initialize reward, regret, epilength vector filenames before we modify the reset_rate, epsilon, etc
-    total_reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
-    total_epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
-    total_regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
-    total_training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
-    ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}.npy"
+    total_reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
 
     env = gym.make(
         'SimpleGridReset-v0', 
@@ -103,7 +107,7 @@ def main():
     )
     
     actions = list(env.unwrapped.MOVES.keys())
-    q = QLearn(actions, epsilon, learning_rate, gamma)
+    q = QLearn(actions, epsilon, learning_rate, gamma) # initialize
     training_done = False # whether, at the given episode, training has completed
     stable_window = deque(maxlen=n_stable)
 
@@ -140,16 +144,20 @@ def main():
 
         while not done:
             a = q.chooseAction(s)
-            s_prime, r, done, truncated, info = env.step(a)
+            s_prime, r, done, truncated, info = env.step(a) # resetting is encoded into this
             reset_last_step = info['reset_last_step']
-            # print(reset_last_step)
 
-            # inner loop to not learn after resetting, only if the flag is there
-            # only skip learning step -- the reward, length, and regret calculations can remain
+            # if reset last step, and if resetting memory, then wipe memory
             if reset_last_step == True:
+                if resetting_mode == 'memory':
+                    q = QLearn(actions, epsilon, learning_rate, gamma) # wipe memory and initialize again
+                # whether or not to qlearn
+                # only skip learning step -- the reward, length, and regret calculations can remain
                 if qlearn_after_resets == True:
                     q.learn(s, a, r, s_prime)
-            elif reset_last_step == False:
+            # print(reset_last_step)
+
+            elif reset_last_step == False: # everything goes normally
                 q.learn(s, a, r, s_prime)
             s = s_prime
             epilength_this_episode += 1
