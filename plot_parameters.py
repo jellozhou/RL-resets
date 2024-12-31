@@ -4,7 +4,7 @@ from collections import defaultdict
 import numpy as np
 
 # Read data from CSV
-filename = "log/parameter_sweep_log_fixed.csv"  # Replace with your actual file name
+filename = "log/parameter_sweep_log_periodic.csv"
 data_fpt = defaultdict(list)  # Data for first passage time
 data_regret = defaultdict(list)  # Data for regret
 data_learning = defaultdict(list)  # Data for learning episode
@@ -22,13 +22,14 @@ with open(filename, 'r') as file:
         learning_episode = float(row[-3])  # Third-to-last column
         data_fpt[system_size].append((reset_rate, first_passage_time))
 
-        # Only add rows where learning episode != -1.0
+        # only add rows where learning episode != -1.0
+        # this happens when there is only one episode (i.e. just to find FPT)
         if learning_episode != -1.0:
             if N_stable == N_stable_value:
                 data_regret[system_size].append((reset_rate, regret))
                 data_learning[system_size].append((reset_rate, learning_episode))
 
-# Toggle for calculating and displaying sweeping average
+# whether or not to calculate sweeping average
 calculate_average = True
 
 def calculate_sweeping_average(x, y, window_size=20):
@@ -109,39 +110,75 @@ for size in sorted(data_fpt.keys()):
     plt.show()
 
 
-# Plot Product of First Passage Time and Regret vs Reset Rates
-for size in sorted(data_fpt.keys()):
-    # Ensure both fpt and regret data are available
-    if size not in data_regret:
+# # Plot product of first passage time & reset rate
+# # this is purely experimental and idt it really works 
+
+# for size in sorted(data_fpt.keys()):
+#     # Ensure both fpt and regret data are available
+#     if size not in data_regret:
+#         print(f"No regret data available for system size {size}")
+#         continue
+
+#     # sort and match reset rates for FPT and regret
+#     values_fpt = sorted(data_fpt[size])  # Sort by resetting rate
+#     values_regret = sorted(data_regret[size])  # Sort by resetting rate
+
+#     reset_rates_fpt, fptimes = zip(*values_fpt)
+#     reset_rates_regret, regrets = zip(*values_regret)
+
+#     # match reset rates and calculate product
+#     reset_rates = []
+#     products = []
+#     for rate_fpt, fptime in zip(reset_rates_fpt, fptimes):
+#         if rate_fpt in reset_rates_regret:
+#             idx = reset_rates_regret.index(rate_fpt)
+#             regret = regrets[idx]
+#             reset_rates.append(rate_fpt)
+#             products.append(fptime * regret)
+
+#     # plotting!
+#     plt.figure(figsize=(6, 4))
+#     plt.scatter(reset_rates, products, color='red', label="FPT × Regret")
+#     if calculate_average:
+#         avg_x, avg_y = calculate_sweeping_average(reset_rates, products)
+#         plt.plot(avg_x, avg_y, color='orange', label="Sweeping Average")
+#     plt.xlabel("Resetting Rate")
+#     plt.ylabel("FPT × Regret")
+#     plt.title(f"System Size: {size} - Product of FPT and Regret ({boundary_type}), nstable {N_stable}")
+#     plt.legend()
+#     plt.savefig(f"parameter_sweep_figs/size_{size}_product_fpt_regret_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
+#     plt.show()
+
+
+# plot the optimal resetting rate that minimizes regret, versus system size
+min_rates = []
+system_sizes = []
+
+for size in sorted(data_regret.keys()):
+    values_regret = sorted(data_regret[size])  # sort by resetting rate
+    if not values_regret:
         print(f"No regret data available for system size {size}")
         continue
 
-    # Sort and match reset rates for FPT and regret
-    values_fpt = sorted(data_fpt[size])  # Sort by resetting rate
-    values_regret = sorted(data_regret[size])  # Sort by resetting rate
-
-    reset_rates_fpt, fptimes = zip(*values_fpt)
     reset_rates_regret, regrets = zip(*values_regret)
 
-    # Match reset rates and calculate product
-    reset_rates = []
-    products = []
-    for rate_fpt, fptime in zip(reset_rates_fpt, fptimes):
-        if rate_fpt in reset_rates_regret:
-            idx = reset_rates_regret.index(rate_fpt)
-            regret = regrets[idx]
-            reset_rates.append(rate_fpt)
-            products.append(fptime * regret)
-
-    # Plot the product
-    plt.figure(figsize=(6, 4))
-    plt.scatter(reset_rates, products, color='red', label="FPT × Regret")
+    # smooth data using calculate_sweeping_average, if the flag is true
     if calculate_average:
-        avg_x, avg_y = calculate_sweeping_average(reset_rates, products)
-        plt.plot(avg_x, avg_y, color='orange', label="Sweeping Average")
-    plt.xlabel("Resetting Rate")
-    plt.ylabel("FPT × Regret")
-    plt.title(f"System Size: {size} - Product of FPT and Regret ({boundary_type}), nstable {N_stable}")
-    plt.legend()
-    plt.savefig(f"parameter_sweep_figs/size_{size}_product_fpt_regret_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
-    plt.show()
+        avg_x, avg_y = calculate_sweeping_average(reset_rates_regret, regrets)
+    else:
+        avg_x, avg_y = reset_rates_regret, regrets
+
+    # find the resetting rate that minimizes regret
+    min_regret = min(avg_y)
+    min_rate = avg_x[avg_y.index(min_regret)]
+
+    min_rates.append(min_rate)
+    system_sizes.append(size)
+
+plt.figure(figsize=(8, 6))
+plt.plot(system_sizes, min_rates, marker='o', linestyle='-', color='blue', label="optimal resetting rate")
+plt.xlabel("N")
+plt.ylabel("Resetting rate that minimizes regret")
+plt.legend()
+plt.savefig(f"minimal_regret_resetting_rate_nstable_{N_stable}_boundary_{boundary_type}.png")
+plt.show()
