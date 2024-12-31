@@ -22,8 +22,16 @@ register(
 
 
 # environments with resets
+# regular boundary conditions + negative reward at boundary
 register(
     id='SimpleGridReset-v0',
     entry_point='simplegrid_with_resets.envs:SimpleGridEnvResets',
-    max_episode_steps=200
+    max_episode_steps=1e100
+)
+
+# periodic boundary conditions
+register(
+    id='SimpleGridResetPBC-v0',
+    entry_point='simplegrid_with_resets.envs:SimpleGridEnvResetsPBC',
+    max_episode_steps=1e100
 )
