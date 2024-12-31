@@ -18,34 +18,17 @@ from simplegrid_with_resets.envs import SimpleGridEnv, SimpleGridEnvResets
 from simplegrid_with_resets.dfs import find_path # depth-first search for constructing gridworld
 from learning_algorithms.QLearn import QLearn
 
-# import gym_simplegrid
-# from simplegrid_with_resets.envs import SimpleGridEnv, SimpleGridEnvResets
-
-#Hyperparameters
-# learning_rate = 0.0005 # alpha
-# gamma         = 0.98 # closer to 1?
-N = 50 # box side length
-# n_stable = 20 # sweep over!
-# reset_rate = 0.01 # parameter sweep
+# no obstacles
 obstacle_prob = 0. # prob that cell in box initialized as obstacle
-# max_exp_rate = 0.08 # exploration vs exploitation rate, not sure if this or the linear annealing is better
-# num_episodes = 100 # specified in parameter sweep
 
-# convert starting & goal (x,y) to state
-start_x = int(N//3)
-start_y = int(N//3)
-goal_x = int(2*N//3)
-goal_y = int(2*N//3)
-start_s = start_x + start_y*N
-goal_s = goal_x + goal_y*N
-
-def create_array(N, obstacle_prob):
+def create_array(N, obstacle_prob, start_x, start_y, goal_x, goal_y):
     # Initialize an N x N array filled with zeros
     arr = np.random.choice([0, 1], size=(N, N), p=[1 - obstacle_prob, obstacle_prob])
 
     # iterate until there is a path from start to goal
-    while find_path(arr, (start_x, start_y), (goal_x, goal_y)) == False:
-        arr = np.random.choice([0, 1], size=(N, N), p=[1 - obstacle_prob, obstacle_prob])
+    # this returns a "maximum recursion depth exceeded" error for large system sizes, and is also unnecessary in our setup
+    # while find_path(arr, (start_x, start_y), (goal_x, goal_y)) == False:
+    #     arr = np.random.choice([0, 1], size=(N, N), p=[1 - obstacle_prob, obstacle_prob])
 
     # Convert the array to the string form
     return [''.join(map(str, row)) for row in arr]
@@ -65,6 +48,8 @@ def main():
     parser.add_argument('--reset_decay', type=str, default='none')
     parser.add_argument('--n_stable', type=int, default=20)
     parser.add_argument('--resetting_mode', type=str, required=True) # resetting mode -- position / memory
+    parser.add_argument('--N', type=int, required=True) # system size
+    parser.add_argument('--boundary', type=str, default='fixed')
 
     args = parser.parse_args()
     reset_rate = args.reset_rate
@@ -75,6 +60,7 @@ def main():
     # parse render mode argument
     if args.render_mode == "None":
         render_mode_arg = None
+        # render_mode_arg = 'human' # to visualize
     else:
         render_mode_arg = args.render_mode # all other options have str inputs
     
@@ -83,26 +69,40 @@ def main():
     elif args.qlearn_after_resets == "False":
         qlearn_after_resets = False
 
+    # options for system geometry
+    boundary_type = args.boundary
+    if boundary_type == 'fixed':
+        system_geom = 'SimpleGridReset-v0'
+    elif boundary_type == 'periodic':
+        system_geom = 'SimpleGridResetPBC-v0'
+
     reset_decay = args.reset_decay
     n_stable = args.n_stable
     resetting_mode = args.resetting_mode
-    # if resetting_mode == "position":
-    #     reset_rate_position = reset_rate
+
+    N = args.N # system size
+    # convert starting & goal (x,y) to state
+    start_x = int(N//3)
+    start_y = int(N//3)
+    goal_x = int(2*N//3)
+    goal_y = int(2*N//3)
+    start_s = start_x + start_y*N
+    goal_s = goal_x + goal_y*N
     
     total_reward_vec = np.empty(num_episodes)
     total_epilength_vec = np.empty(num_episodes)
     total_regret_vec = np.empty(num_episodes)
 
     # initialize reward, regret, epilength vector filenames before we modify the reset_rate, epsilon, etc
-    total_reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
 
     env = gym.make(
-        'SimpleGridReset-v0', 
-        obstacle_map=create_array(N, obstacle_prob), 
+        system_geom, 
+        obstacle_map=create_array(N, obstacle_prob, start_x, start_y, goal_x, goal_y), 
         render_mode=render_mode_arg
     )
     
@@ -175,13 +175,10 @@ def main():
         stable_now = q.QStable()
         stable_window.append(stable_now)
 
-        # print(stable_now)
-        # print(all(stable_window))
-
         if len(stable_window) == n_stable and all(stable_window):
             if not training_done:
                 training_done = True
-                training_done_epi = n_epi-n_stable
+                training_done_epi = n_epi - n_stable
                 print(f"Training completed at episode {training_done_epi}")
 
         # if q.QStable():
