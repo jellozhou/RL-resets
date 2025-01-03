@@ -91,11 +91,15 @@ def main():
     
     total_reward_vec = np.empty(num_episodes)
     total_epilength_vec = np.empty(num_episodes)
+    total_length_vec = np.empty(num_episodes)
     total_regret_vec = np.empty(num_episodes)
 
     # initialize reward, regret, epilength vector filenames before we modify the reset_rate, epsilon, etc
     total_reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
     total_epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    
+    # distinguish between episode length and LENGTH, which resets every reset (i.e. it is the eventual path from the start to the goal that the agent finds)
+    total_length_vec_file = f"vectors/total_length_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
     total_regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
     total_training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
     ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_qlearnreset_{qlearn_after_resets}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
@@ -117,6 +121,7 @@ def main():
         # initialize reward, episode length, regret
         reward_this_episode = 0
         epilength_this_episode = 0
+        length_this_episode = 0
         # is there any value in calculating the step-wise integrated regret?
         regret_this_episode = 0
 
@@ -149,6 +154,7 @@ def main():
 
             # if reset last step, and if resetting memory, then wipe memory
             if reset_last_step == True:
+                length_this_episode = 0 # reset back to 0
                 if resetting_mode == 'memory':
                     q = QLearn(actions, epsilon, learning_rate, gamma) # wipe memory and initialize again
                 # whether or not to qlearn
@@ -159,6 +165,8 @@ def main():
 
             elif reset_last_step == False: # everything goes normally
                 q.learn(s, a, r, s_prime)
+                length_this_episode += 1
+
             s = s_prime
             epilength_this_episode += 1
             # reward_this_episode += r * gamma**(epilength_this_episode) # DISCOUNTED reward is a more accurate metric
@@ -167,6 +175,7 @@ def main():
             if done:
                 total_reward_vec[n_epi] = reward_this_episode
                 total_epilength_vec[n_epi] = epilength_this_episode
+                total_length_vec[n_epi] = length_this_episode
                 regret_this_episode = rwd_opt - reward_this_episode
                 total_regret_vec[n_epi] = regret_this_episode
                 break
@@ -194,6 +203,7 @@ def main():
     # save stored vectors to feed into bash script, which then writes them to one CSV file
     np.save(total_reward_vec_file, total_reward_vec)
     np.save(total_epilength_vec_file, total_epilength_vec)
+    np.save(total_length_vec_file, total_length_vec)
     np.save(total_regret_vec_file, total_regret_vec)
     np.save(total_training_done_epi_file, training_done_epi)
     # save the ending regret

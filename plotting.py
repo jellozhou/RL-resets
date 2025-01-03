@@ -52,7 +52,8 @@ N_trials = int(avg_array.size / 3)
 # divide into reward, episode length, regret arrays
 avg_reward_arr = avg_array[0]
 avg_epilength_arr = avg_array[1]
-avg_regret_arr = avg_array[2]
+avg_length_arr = avg_array[2]
+avg_regret_arr = avg_array[3]
 
 # construct episode number array
 episode_num = np.linspace(1, avg_reward_arr.size, avg_reward_arr.size)
@@ -74,6 +75,14 @@ plt.savefig("figs/avg_epilength_"+filename_stripped+".png")
 # plt.show()
 
 plt.figure()
+plt.plot(episode_num, avg_length_arr)
+plt.title(format_title(extract_variables(filename_stripped)), fontsize=8)
+plt.xlabel("Episode number")
+plt.ylabel("Average length of final path per episode")
+plt.savefig("figs/avg_length_"+filename_stripped+".png")
+# plt.show()
+
+plt.figure()
 plt.plot(episode_num, avg_epilength_arr)
 plt.title(format_title(extract_variables(filename_stripped)), fontsize=8)
 plt.xlabel("Episode number")
@@ -81,6 +90,16 @@ plt.ylabel("Average length per episode")
 plt.xscale('log')
 plt.yscale('log')
 plt.savefig("figs/logscale/loglog_avg_epilength_"+filename_stripped+".png")
+# plt.show()
+
+plt.figure()
+plt.plot(episode_num, avg_length_arr)
+plt.title(format_title(extract_variables(filename_stripped)), fontsize=8)
+plt.xlabel("Episode number")
+plt.ylabel("Average length of final path per episode")
+plt.xscale('log')
+plt.yscale('log')
+plt.savefig("figs/logscale/loglog_avg_length_"+filename_stripped+".png")
 # plt.show()
 
 plt.figure()

@@ -91,17 +91,14 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, qlea
         # read vectors
         reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
         epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        length_vec_file = f"vectors/total_length_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
         regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
         training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
         ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_qlearnreset_{qlearn_after_resets_value}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
 
-        # reward_vec = np.load('total_reward_vec.npy', allow_pickle=True)
-        # epilength_vec = np.load('total_epilength_vec.npy', allow_pickle=True)
-        # regret_vec = np.load('total_regret_vec.npy', allow_pickle=True)
-        # training_done_epi = np.load('training_done_epi.npy', allow_pickle=True)
-
         reward_vec = np.load(reward_vec_file, allow_pickle=True)
         epilength_vec = np.load(epilength_vec_file, allow_pickle=True)
+        length_vec = np.load(length_vec_file, allow_pickle=True)
         regret_vec = np.load(regret_vec_file, allow_pickle=True)
         training_done_epi = np.load(training_done_epi_file, allow_pickle=True)
         ending_regret = np.load(ending_regret_file, allow_pickle=True)
@@ -115,9 +112,11 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, qlea
             reward_sum = np.zeros_like(reward_vec)
             epilength_sum = np.zeros_like(epilength_vec)
             regret_sum = np.zeros_like(regret_vec)
+            length_sum = np.zeros_like(length_vec)
 
         reward_sum += reward_vec
         epilength_sum += epilength_vec
+        length_sum += length_vec
         regret_sum += regret_vec
         training_done_epi_sum += training_done_epi
         ending_regret_sum += ending_regret
@@ -125,13 +124,15 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, qlea
     # calculate averages
     reward_avg = reward_sum / N_trials
     epilength_avg = epilength_sum / N_trials # when N=1, this is a way to find the first passage time
+    length_avg = length_sum / N_trials # same as above comment
     regret_avg = regret_sum / N_trials
     training_done_epi_avg = training_done_epi_sum / N_trials
     ending_regret_avg = ending_regret_sum / N_trials
 
     # write averages
     with open(output_file_avg, 'w') as f:
-        np.savetxt(f, [reward_avg, epilength_avg, regret_avg], delimiter=',')
+        # save the averaged vectors to eventually plot!
+        np.savetxt(f, [reward_avg, epilength_avg, length_avg, regret_avg], delimiter=',')
 
     # log total regret and training completion
 
@@ -141,8 +142,8 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, qlea
     log_file = f'log/parameter_sweep_log_{boundary_type}.csv'
 
     total_regret_across_episodes = np.sum(regret_avg) # INTEGRATED regret over episodes
-    with open(log_file, 'a') as f:
-        f.write(f"{reset_rate},{N},{boundary_type},{learning_rate},{gamma},{epsilon},{n_stable_value},{qlearn_after_resets_value},{reset_decay},{total_regret_across_episodes},{training_done_epi_avg},{ending_regret_avg},{epilength_avg[0]}\n") # there is the indexing since it's a vector
+    with open(log_file, 'a') as f:              
+        f.write(f"{reset_rate},{N},{boundary_type},{learning_rate},{gamma},{epsilon},{n_stable_value},{qlearn_after_resets_value},{reset_decay},{total_regret_across_episodes},{training_done_epi_avg},{ending_regret_avg},{epilength_avg[0]},{length_avg[0]}\n") # there is the indexing since it's a vector
 
     # call plotting script
     cmd = f"python plotting.py --filename {output_file_avg}"
