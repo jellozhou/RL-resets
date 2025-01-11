@@ -67,6 +67,9 @@ class QLearn:
             # new value compared to the old value.
             self.q[(state, action)] = oldv + self.learning_rate * (target - oldv)
 
+    # mostly for debugging: print the Q-table
+    def print_Q_table(self, state):
+        print([self.getQ(state, a) for a in self.actions])
 
     def QStable(self):
         """Check if the relative maximum Q-value indices for all states are the same as the previous episode."""
@@ -89,13 +92,17 @@ class QLearn:
         # If all states have the same relative max Q-value index, we consider the Q-table stable
         return True
 
-    # def QStableForN(self, n):
-    #     """Check if QStable has returned True for the past n episodes."""
-    #     return len(self.stability_history) == n and all(self.stability_history)
-
-    # def updateStability(self):
-    #     """Update stability history after each episode."""
-    #     self.stability_history.append(self.QStable())
+    def QDirectional(self, state):
+        # determine whether the (strictly) largest Q-table value is to the right or below the state
+        q_up, q_down, q_left, q_right = [self.getQ(state, a) for a in self.actions] # all the q-values: these should be ordered by state -- order: up, down, left, right
+        correct_direction = False
+        # set to true if q_up and q_left are both strictly smaller than one of q_down and q_right
+        # for example, if q_down = q_right but are both larger than up the up or left directions, then we set correct_direction to true
+        # note that this doesn't work for meandering paths but we don't want these anyways
+        # to make more tolerant maybe we can introduce a measure for percentage of states that follow this rule? But that is a slippery slope. 
+        if (q_up < q_down or q_up < q_right) and (q_left < q_down or q_left < q_right):
+            correct_direction = True
+        return correct_direction
 
     def chooseAction(self, state):
         """Epsilon-Greedy approach for action selection."""
@@ -111,6 +118,7 @@ class QLearn:
             count = q.count(maxQ)
             # If there are multiple actions with the same Q-Value,
             # then choose randomly among them
+            # print(count)
             if count > 1:
                 best = [i for i in range(len(self.actions)) if q[i] == maxQ]
                 i = random.choice(best)
@@ -119,6 +127,12 @@ class QLearn:
 
             action = self.actions[i]
         return action
+
+    def getCount(self, state): # get plurality of actions that return equal Q-values
+        q = [self.getQ(state, a) for a in self.actions]
+        maxQ = max(q)
+        count = q.count(maxQ)
+        return count
 
     # function to call that updates q values from trajectory
     def learn(self, state1, action1, reward, state2):
