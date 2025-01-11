@@ -20,7 +20,7 @@ with open(filename, 'r') as file:
         boundary_type = row[2]
         regret = float(row[-4])  # Fourth-to-last column
         learning_episode = float(row[-3])  # Third-to-last column
-        data_fpt[system_size].append((reset_rate, first_passage_time))
+        # data_fpt[system_size].append((reset_rate, first_passage_time))
 
         # only add rows where learning episode != -1.0
         # this happens when there is only one episode (i.e. just to find FPT)
@@ -28,6 +28,8 @@ with open(filename, 'r') as file:
             if N_stable == N_stable_value:
                 data_regret[system_size].append((reset_rate, regret))
                 data_learning[system_size].append((reset_rate, learning_episode))
+            if reset_rate < 1e-3: # only add fpt below a certain value
+                data_fpt[system_size].append((reset_rate, first_passage_time))
 
 # whether or not to calculate sweeping average
 calculate_average = True
@@ -62,12 +64,12 @@ for size in sorted(data_fpt.keys()):
     # plt.axvline(min_rate, color='red', linestyle='--', label=f"Optimum {min_rate:.2f}")
     plt.xlabel("Resetting Rate")
     plt.ylabel("First Passage Time")
+    # plt.xlim([0, 5e-5])
     # plt.xscale("log")
     # plt.yscale("log")
     plt.title(f"System Size: {size} - First Passage Time ({boundary_type}), nstable {N_stable}")
     plt.legend()
-    # plt.grid(True)
-    plt.savefig(f"parameter_sweep_figs/size_{size}_fpt_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
+    # plt.savefig(f"parameter_sweep_figs/size_{size}_fpt_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
     plt.show()
 
     # Regret Plot
@@ -88,8 +90,7 @@ for size in sorted(data_fpt.keys()):
     # plt.yscale("log")
     plt.title(f"System Size: {size} - Regret ({boundary_type}), nstable {N_stable}")
     plt.legend()
-    # plt.grid(True)
-    plt.savefig(f"parameter_sweep_figs/size_{size}_regret_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
+    # plt.savefig(f"parameter_sweep_figs/size_{size}_regret_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
     plt.show()
 
     # Learning Episode Plot
@@ -105,8 +106,7 @@ for size in sorted(data_fpt.keys()):
     plt.ylabel("Learning Episode")
     plt.title(f"System Size: {size} - Learning Episode ({boundary_type}), nstable {N_stable}")
     plt.legend()
-    # plt.grid(True)
-    plt.savefig(f"parameter_sweep_figs/size_{size}_learningep_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
+    # plt.savefig(f"parameter_sweep_figs/size_{size}_learningep_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
     plt.show()
 
 
@@ -180,5 +180,5 @@ plt.plot(system_sizes, min_rates, marker='o', linestyle='-', color='blue', label
 plt.xlabel("N")
 plt.ylabel("Resetting rate that minimizes regret")
 plt.legend()
-plt.savefig(f"minimal_regret_resetting_rate_nstable_{N_stable}_boundary_{boundary_type}.png")
+plt.savefig(f"parameter_sweep_figs/minimal_regret_resetting_rate_nstable_{N_stable}_boundary_{boundary_type}.png")
 plt.show()
