@@ -238,7 +238,7 @@ def main():
     np.save(total_regret_vec_file, total_regret_vec)
     np.save(total_training_done_epi_file, training_done_epi)
     # save the ending regret
-    np.save(ending_regret_file, regret_test_episode) # ending regret is the last regret_this_episode
+    np.save(ending_regret_file, regret_this_episode) # ending regret is the last regret_this_episode
 
     env.close()
 
