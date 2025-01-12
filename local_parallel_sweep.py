@@ -4,7 +4,7 @@ import numpy as np
 from concurrent.futures import ThreadPoolExecutor
 
 # function to run one parameter sweep locally
-def run_local_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable, learning_end_condition, qlearn_after_resets_value, resetting_mode_value, boundary_mode, reset_decay, num_episodes, render_mode):
+def run_local_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value, boundary_mode, reset_decay, num_episodes, render_mode):
     command = [
         "python", "one_sweep_learning_resets.py",
         "--reset_rate", str(reset_rate),
@@ -17,7 +17,6 @@ def run_local_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable, lear
         "--reset_decay", reset_decay,
         "--num_episodes", str(num_episodes),
         "--render_mode", render_mode,
-        "--qlearn_after_resets", str(qlearn_after_resets_value),
         "--resetting_mode", resetting_mode_value,
         "--boundary", boundary_mode
     ]
@@ -32,12 +31,11 @@ def run_local_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable, lear
 # N_array = [25, 30, 35, 40, 45, 50, 55, 60]
 N_array = [50]
 # reset_rates = np.linspace(0.,2e-5,101)
-reset_rates = [0.0]
+reset_rates = [0.005, 0.01, 0.02]
 learning_rates = [0.0005]
 gammas = [0.965]
 epsilons = [0.06]
 n_stables = [30]
-qlearn_after_resets = [False] # probably doesn't matter? since the reward is 0 anyways
 resetting_mode = ["position"]
 boundary_mode = ["fixed"] # takes the values periodic or fixed
 learning_end_conditions = ["threshold"] # options: threshold, QStable
@@ -54,10 +52,9 @@ for learning_end_condition in learning_end_conditions:
                 for gamma in gammas:
                     for epsilon in epsilons:
                         for n_stable in n_stables:
-                            for qlearn_after_resets_value in qlearn_after_resets:
-                                for resetting_mode_value in resetting_mode:
-                                    for boundary_mode_value in boundary_mode: 
-                                        param_list.append((reset_rate, N, learning_rate, gamma, epsilon, n_stable, learning_end_condition, qlearn_after_resets_value, resetting_mode_value, boundary_mode_value))
+                            for resetting_mode_value in resetting_mode:
+                                for boundary_mode_value in boundary_mode: 
+                                    param_list.append((reset_rate, N, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value, boundary_mode_value))
 
 # print the number of parameter combinations (to debug)
 print(f"Total parameter combinations: {len(param_list)}")

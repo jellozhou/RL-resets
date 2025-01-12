@@ -4,23 +4,36 @@ from collections import defaultdict
 import numpy as np
 
 # Read data from CSV
-filename = "log/parameter_sweep_log_periodic.csv"
+filename = "log/parameter_sweep_log_fixed_adjustable.csv"
 data_fpt = defaultdict(list)  # Data for first passage time
 data_regret = defaultdict(list)  # Data for regret
 data_learning = defaultdict(list)  # Data for learning episode
 N_stable_value = 30  # to filter N_stable values
 
+# to do: implement a function that, similar to integrated regret, calculates the sum of total lengths of final paths (not epilengths) across episodes? 
+
 with open(filename, 'r') as file:
     reader = csv.reader(file)
-    for row in reader:
+    rows = list(reader)
+
+    # first loop through rows to find maximum episode length across trials
+    max_length_across_trials = 0
+    for row in rows:
+        max_length = int(row[-1])
+        if max_length > max_length_across_trials:
+            max_length_across_trials = max_length
+
+    for row in rows:
         reset_rate = float(row[0])
         system_size = int(row[1])
-        first_passage_time = float(row[-1])
+        first_passage_time = float(row[-3])
+        first_complete_path = float(row[-2]) # length[0]
         N_stable = int(row[6])
         boundary_type = row[2]
-        regret = float(row[-4])  # Fourth-to-last column
-        learning_episode = float(row[-3])  # Third-to-last column
-        # data_fpt[system_size].append((reset_rate, first_passage_time))
+        learning_episode = float(row[-5])
+        max_length = int(row[-1])
+        ending_regret = float(row[-4])
+        regret = float(row[-6]) + (max_length_across_trials - max_length) * ending_regret # to adjust for different max lengths
 
         # only add rows where learning episode != -1.0
         # this happens when there is only one episode (i.e. just to find FPT)
@@ -28,7 +41,7 @@ with open(filename, 'r') as file:
             if N_stable == N_stable_value:
                 data_regret[system_size].append((reset_rate, regret))
                 data_learning[system_size].append((reset_rate, learning_episode))
-            if reset_rate < 1e-3: # only add fpt below a certain value
+            # if reset_rate < 1e-3: # only add fpt below a certain value # not useful anymore
                 data_fpt[system_size].append((reset_rate, first_passage_time))
 
 # whether or not to calculate sweeping average
