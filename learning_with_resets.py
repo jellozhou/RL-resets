@@ -167,6 +167,7 @@ def main():
             reward_this_episode -= 1 # simple reward fn. decreases with #steps
 
             if done:
+                # print(epilength_this_episode) # debug
                 total_reward_vec[n_epi] = reward_this_episode
                 total_epilength_vec[n_epi] = epilength_this_episode
                 total_length_vec[n_epi] = length_this_episode
@@ -233,6 +234,7 @@ def main():
 
     # save stored vectors to feed into bash script, which then writes them to one CSV file
     np.save(total_reward_vec_file, total_reward_vec)
+    # print(total_epilength_vec) # debug
     np.save(total_epilength_vec_file, total_epilength_vec)
     np.save(total_length_vec_file, total_length_vec)
     np.save(total_regret_vec_file, total_regret_vec)

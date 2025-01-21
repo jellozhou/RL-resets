@@ -36,7 +36,7 @@ boundary_type = args.boundary
 learning_end_condition = args.learning_end_condition
 
 # parameters to keep fixed
-N_trials = 100 # number of trials to avg over
+N_trials = 10 # number of trials to avg over
 
 # create results directory
 os.makedirs('results', exist_ok=True)
@@ -78,7 +78,7 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
 
         print(f"  Trial {trial}...")
 
-        cmd = f"python learning_with_resets_adjustable.py --reset_rate {reset_rate} --N {N} --boundary {boundary_type} --learning_rate {learning_rate} --gamma {gamma} --epsilon {epsilon} --n_stable {n_stable_value} --learning_end_condition {learning_end_condition} --reset_decay {reset_decay} --resetting_mode {resetting_mode} --num_episodes {num_episodes} --render_mode {render_mode}"
+        cmd = f"python learning_with_resets.py --reset_rate {reset_rate} --N {N} --boundary {boundary_type} --learning_rate {learning_rate} --gamma {gamma} --epsilon {epsilon} --n_stable {n_stable_value} --learning_end_condition {learning_end_condition} --reset_decay {reset_decay} --resetting_mode {resetting_mode} --num_episodes {num_episodes} --render_mode {render_mode}"
         try:
             run_command(cmd)
         except RuntimeError as e:
@@ -95,6 +95,7 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
 
         reward_vec = np.load(reward_vec_file, allow_pickle=True)
         epilength_vec = np.load(epilength_vec_file, allow_pickle=True)
+        # print(epilength_vec) # debug
         length_vec = np.load(length_vec_file, allow_pickle=True)
         regret_vec = np.load(regret_vec_file, allow_pickle=True)
         training_done_epi = np.load(training_done_epi_file, allow_pickle=True)
@@ -115,6 +116,7 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
             np.savetxt(f, [reward_vec, epilength_vec, regret_vec], delimiter=',')
 
         # accumulate values for averaging
+        # if this is the first trial, initialize to vector of zeros
         if reward_sum is None:
             reward_sum = np.zeros(max_length)
             epilength_sum = np.zeros(max_length)
@@ -122,14 +124,15 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
             length_sum = np.zeros(max_length)
 
         # Extend vectors to the maximum length encountered so far
-        reward_sum = extend_vector(reward_vec, len(reward_sum))
-        epilength_sum = extend_vector(epilength_vec, len(epilength_sum))
-        regret_sum = extend_vector(regret_vec, len(regret_sum))
-        length_sum = extend_vector(length_vec, len(length_sum))
+        reward_sum = extend_vector(reward_sum, len(reward_sum))
+        epilength_sum = extend_vector(epilength_sum, len(epilength_sum))
+        regret_sum = extend_vector(regret_sum, len(regret_sum))
+        length_sum = extend_vector(length_sum, len(length_sum))
 
         # Add the extended vectors
         reward_sum += reward_vec
         epilength_sum += epilength_vec
+        # print("sum", epilength_sum) # debug
         length_sum += length_vec
         regret_sum += regret_vec
         training_done_epi_sum += training_done_epi
@@ -139,6 +142,7 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
     # calculate averages
     reward_avg = reward_sum / N_trials
     epilength_avg = epilength_sum / N_trials # when N=1, this is a way to find the first passage time
+    # print(epilength_avg) # debug
     length_avg = length_sum / N_trials # same as above comment
     regret_avg = regret_sum / N_trials
     training_done_epi_avg = training_done_epi_sum / N_trials

@@ -31,7 +31,7 @@ def run_local_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable, lear
 # N_array = [25, 30, 35, 40, 45, 50, 55, 60]
 N_array = [50]
 # reset_rates = np.linspace(0.,2e-5,101)
-reset_rates = [0.005, 0.01, 0.02]
+reset_rates = [0.005]
 learning_rates = [0.0005]
 gammas = [0.965]
 epsilons = [0.06]

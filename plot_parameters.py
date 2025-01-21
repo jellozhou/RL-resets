@@ -4,11 +4,12 @@ from collections import defaultdict
 import numpy as np
 
 # Read data from CSV
-filename = "log/parameter_sweep_log_fixed_adjustable.csv"
+filename = "log/parameter_sweep_log_fixed_250.csv"
 data_fpt = defaultdict(list)  # Data for first passage time
 data_regret = defaultdict(list)  # Data for regret
 data_learning = defaultdict(list)  # Data for learning episode
 N_stable_value = 30  # to filter N_stable values
+learning_end_value = 'threshold'
 
 # to do: implement a function that, similar to integrated regret, calculates the sum of total lengths of final paths (not epilengths) across episodes? 
 
@@ -27,22 +28,24 @@ with open(filename, 'r') as file:
         reset_rate = float(row[0])
         system_size = int(row[1])
         first_passage_time = float(row[-3])
+        # print(first_passage_time)
         first_complete_path = float(row[-2]) # length[0]
         N_stable = int(row[6])
         boundary_type = row[2]
         learning_episode = float(row[-5])
         max_length = int(row[-1])
         ending_regret = float(row[-4])
+        print(max_length_across_trials - max_length)
         regret = float(row[-6]) + (max_length_across_trials - max_length) * ending_regret # to adjust for different max lengths
 
         # only add rows where learning episode != -1.0
         # this happens when there is only one episode (i.e. just to find FPT)
         if learning_episode != -1.0:
-            if N_stable == N_stable_value:
-                data_regret[system_size].append((reset_rate, regret))
-                data_learning[system_size].append((reset_rate, learning_episode))
+            data_regret[system_size].append((reset_rate, regret))
+            data_learning[system_size].append((reset_rate, learning_episode))
             # if reset_rate < 1e-3: # only add fpt below a certain value # not useful anymore
-                data_fpt[system_size].append((reset_rate, first_passage_time))
+        # if reset_rate < 1e-7: 
+        data_fpt[system_size].append((reset_rate, first_passage_time))
 
 # whether or not to calculate sweeping average
 calculate_average = True
@@ -82,7 +85,7 @@ for size in sorted(data_fpt.keys()):
     # plt.yscale("log")
     plt.title(f"System Size: {size} - First Passage Time ({boundary_type}), nstable {N_stable}")
     plt.legend()
-    # plt.savefig(f"parameter_sweep_figs/size_{size}_fpt_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
+    plt.savefig(f"parameter_sweep_figs/size_{size}_fpt_{boundary_type}_nstable_{N_stable}_learningend_{learning_end_value}.png")  # Save the figure
     plt.show()
 
     # Regret Plot
@@ -103,7 +106,7 @@ for size in sorted(data_fpt.keys()):
     # plt.yscale("log")
     plt.title(f"System Size: {size} - Regret ({boundary_type}), nstable {N_stable}")
     plt.legend()
-    # plt.savefig(f"parameter_sweep_figs/size_{size}_regret_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
+    plt.savefig(f"parameter_sweep_figs/size_{size}_regret_{boundary_type}_nstable_{N_stable}_learningend_{learning_end_value}.png")  # Save the figure
     plt.show()
 
     # Learning Episode Plot
@@ -119,7 +122,7 @@ for size in sorted(data_fpt.keys()):
     plt.ylabel("Learning Episode")
     plt.title(f"System Size: {size} - Learning Episode ({boundary_type}), nstable {N_stable}")
     plt.legend()
-    # plt.savefig(f"parameter_sweep_figs/size_{size}_learningep_{boundary_type}_nstable_{N_stable}.png")  # Save the figure
+    plt.savefig(f"parameter_sweep_figs/size_{size}_learningep_{boundary_type}_nstable_{N_stable}_learningend_{learning_end_value}.png")  # Save the figure
     plt.show()
 
 
