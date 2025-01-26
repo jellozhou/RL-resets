@@ -26,12 +26,19 @@ register(
 register(
     id='SimpleGridReset-v0',
     entry_point='simplegrid_with_resets.envs:SimpleGridEnvResets',
-    max_episode_steps=1e100
+    max_episode_steps=200
 )
 
 # periodic boundary conditions
 register(
     id='SimpleGridResetPBC-v0',
     entry_point='simplegrid_with_resets.envs:SimpleGridEnvResetsPBC',
-    max_episode_steps=1e100
+    max_episode_steps=200
+)
+
+# 1D (line)
+register(
+    id='SimpleLineReset',
+    entry_point='simplegrid_with_resets.envs:SimpleLineEnvResets',
+    max_episode_steps=200
 )
