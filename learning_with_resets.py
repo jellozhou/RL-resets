@@ -21,14 +21,25 @@ from learning_algorithms.QLearn import QLearn
 # no obstacles
 obstacle_prob = 0. # prob that cell in box initialized as obstacle
 
-def create_array(N, obstacle_prob, start_x, start_y, goal_x, goal_y):
+# large system length
+total_length = int(2e3) # is this large enough? 
+# total_length = 50 # to visualize
+
+def create_array_2D(total_length, obstacle_prob, start_x, start_y, goal_x, goal_y):
     # Initialize an N x N array filled with zeros
-    arr = np.random.choice([0, 1], size=(N, N), p=[1 - obstacle_prob, obstacle_prob])
+    arr = np.random.choice([0, 1], size=(total_length, total_length), p=[1 - obstacle_prob, obstacle_prob])
 
     # iterate until there is a path from start to goal
     # this returns a "maximum recursion depth exceeded" error for large system sizes, and is also unnecessary in our setup
     # while find_path(arr, (start_x, start_y), (goal_x, goal_y)) == False:
     #     arr = np.random.choice([0, 1], size=(N, N), p=[1 - obstacle_prob, obstacle_prob])
+
+    # Convert the array to the string form
+    return [''.join(map(str, row)) for row in arr]
+
+def create_array_1D(total_length, obstacle_prob, start_s, goal_s):
+    # Initialize an N x N array filled with zeros
+    arr = np.random.choice([0, 1], size=(1, total_length), p=[1 - obstacle_prob, obstacle_prob])
 
     # Convert the array to the string form
     return [''.join(map(str, row)) for row in arr]
@@ -50,6 +61,7 @@ def main():
     parser.add_argument('--N', type=int, required=True) # system size
     parser.add_argument('--boundary', type=str, default='fixed')
     parser.add_argument('--learning_end_condition', type=str, required=True) # options: QStable (N end-of-episodes at which the relative Q-table values are fixed) and threshold (path length without exploration is < 1.1 times taxicab)
+    parser.add_argument('--dimension', type=int, required=True) # options: 1 and 2
 
     args = parser.parse_args()
     reset_rate = args.reset_rate
@@ -66,29 +78,48 @@ def main():
     else:
         render_mode_arg = args.render_mode # all other options have str inputs
 
-    # options for system geometry
+    # dimension options
+    N = args.N # system size
+    dim = args.dimension
     boundary_type = args.boundary
-    if boundary_type == 'fixed':
-        system_geom = 'SimpleGridReset-v0'
-    elif boundary_type == 'periodic':
-        system_geom = 'SimpleGridResetPBC-v0'
 
+    if dim == 1:
+        system_geom = 'SimpleLineReset'
+        start_s = int(total_length//2 - N//2)
+        goal_s = int(total_length//2 + N//2)
+        taxicab_length = goal_s - start_s
+
+    elif dim == 2:
+        # convert starting & goal (x,y) to state
+        # start_x = int(N//3)
+        # start_y = int(N//3)
+        # goal_x = int(2*N//3)
+        # goal_y = int(2*N//3)
+
+        start_x = int(total_length / 2 - N/2)
+        start_y = int(total_length / 2 - N/2)
+        goal_x = int(total_length / 2 + N/2)
+        goal_y = int(total_length / 2 + N/2)
+
+        # unravel to state space
+        start_s = start_x + start_y*total_length
+        goal_s = goal_x + goal_y*total_length
+
+        # print(start_x, start_y, goal_x, goal_y)
+
+        # for 2D, options for system geometry
+        if boundary_type == 'fixed':
+            system_geom = 'SimpleGridReset-v0'
+        elif boundary_type == 'periodic':
+            system_geom = 'SimpleGridResetPBC-v0'
+
+        # define optimal solution to later calculate regret
+        taxicab_length = np.absolute(goal_x - start_x) + np.absolute(goal_y - start_y)
+
+    rwd_opt = -1 * taxicab_length
     reset_decay = args.reset_decay
     n_stable = args.n_stable
     resetting_mode = args.resetting_mode
-
-    N = args.N # system size
-    # convert starting & goal (x,y) to state
-    start_x = int(N//3)
-    start_y = int(N//3)
-    goal_x = int(2*N//3)
-    goal_y = int(2*N//3)
-    start_s = start_x + start_y*N
-    goal_s = goal_x + goal_y*N
-
-    # define optimal solution to later calculate regret
-    taxicab_length = np.absolute(goal_x - start_x) + np.absolute(goal_y - start_y)
-    rwd_opt = -1 * taxicab_length
     
     total_reward_vec = np.empty(num_episodes)
     total_epilength_vec = np.empty(num_episodes)
@@ -96,20 +127,28 @@ def main():
     total_regret_vec = np.empty(num_episodes)
 
     # initialize reward, regret, epilength vector filenames before we modify the reset_rate, epsilon, etc
-    total_reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
     
     # distinguish between episode length and LENGTH, which resets every reset (i.e. it is the eventual path from the start to the goal that the agent finds)
-    total_length_vec_file = f"vectors/total_length_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_length_vec_file = f"vectors/total_length_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
 
-    env = gym.make(
-        system_geom, 
-        obstacle_map=create_array(N, obstacle_prob, start_x, start_y, goal_x, goal_y), 
-        render_mode=render_mode_arg
-    )
+    if dim == 2:
+        env = gym.make(
+            system_geom, 
+            obstacle_map=create_array_2D(total_length, obstacle_prob, start_x, start_y, goal_x, goal_y), 
+            render_mode=render_mode_arg
+        )
+
+    elif dim == 1:
+        env = gym.make(
+            system_geom, 
+            obstacle_map=create_array_1D(total_length, obstacle_prob, start_s, goal_s), 
+            render_mode=render_mode_arg
+        )
     
     actions = list(env.unwrapped.MOVES.keys()) # actions defined in environment, then fed into QLearn
     q = QLearn(actions, epsilon, learning_rate, gamma) # initialize
@@ -193,8 +232,12 @@ def main():
                     a = q.chooseAction(s)
                     s_prime, r, done, truncated, info = env.step(a) # resetting is encoded into this
                     testing_step_no += 1
-                    if q.QDirectional(s) == False:
-                        QTable_direction_incorrect += 1
+
+                    # only check directionality for 2D systems:
+                    # for 1D QTable_direction_incorrect stays at 0, which automatically passes the later check
+                    if dim == 2:
+                        if q.QDirectional(s) == False:
+                            QTable_direction_incorrect += 1
 
                     # DEBUGGING
                     # QTable_direction_correct = QTable_direction_correct and q.QDirectional(s) # only true if everything is true # old, and doesn't allow for error

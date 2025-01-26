@@ -5,7 +5,7 @@ import numpy as np
 # perform (hopefully faster) parameter sweep by generating many slurm scripts and running all of them, in which each script calls one_sweep_learning_resets.py (the sweep for one parameter value)
 
 # function to generate a SLURM script for each parameter combination
-def generate_slurm_script(reset_rate, N, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value, boundary_mode, reset_decay, num_episodes, render_mode):
+def generate_slurm_script(reset_rate, N, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value, boundary_mode, dimension, reset_decay, num_episodes, render_mode):
     script_content = f"""#!/bin/bash
 #SBATCH --job-name=sweep_rr{reset_rate:.4f}_N_{N}_lr{learning_rate}
 #SBATCH --mail-type=ALL
@@ -31,7 +31,8 @@ python one_sweep_learning_resets.py --reset_rate {reset_rate} \\
                                 --render_mode {render_mode} \\
                                 --resetting_mode {resetting_mode_value} \\
                                 --boundary {boundary_mode} \\
-                                --learning_end_condition {learning_end_condition}
+                                --learning_end_condition {learning_end_condition} \\
+                                --dimension {dimension}
 """
     # Create directories for SLURM scripts and logs if they don't exist
     os.makedirs("slurm_scripts", exist_ok=True)
@@ -46,8 +47,8 @@ python one_sweep_learning_resets.py --reset_rate {reset_rate} \\
 # function to submit all generated scripts to the SLURM scheduler
 def submit_slurm_scripts(param_list, reset_decay, num_episodes, render_mode):
     for params in param_list:
-        reset_rate, N, boundary_mode, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value = params
-        slurm_script = generate_slurm_script(reset_rate, N, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value, boundary_mode, reset_decay, num_episodes, render_mode)
+        reset_rate, N, boundary_mode, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value, dimension = params
+        slurm_script = generate_slurm_script(reset_rate, N, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value, boundary_mode, dimension, reset_decay, num_episodes, render_mode)
         subprocess.run(f"sbatch {slurm_script}", shell=True) # run the slurm script
 
 # parameter ranges and parameter list generation
@@ -61,19 +62,21 @@ n_stables = [30]
 resetting_mode = ["position"]
 boundary = ["fixed"]
 learning_end_conditions = ["threshold"] # threshold or QStable
+dimensions = [1]
 
 # generate parameter list
 param_list = []
-for learning_end_condition in learning_end_conditions:
-    for boundary_mode in boundary:
-        for reset_rate in reset_rates:
-            for N in N_array:
-                for learning_rate in learning_rates:
-                    for gamma in gammas:
-                        for epsilon in epsilons:
-                            for n_stable in n_stables:
-                                for resetting_mode_value in resetting_mode: 
-                                    param_list.append((reset_rate, N, boundary_mode, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value))
+for dimension in dimensions:
+    for learning_end_condition in learning_end_conditions:
+        for boundary_mode in boundary:
+            for reset_rate in reset_rates:
+                for N in N_array:
+                    for learning_rate in learning_rates:
+                        for gamma in gammas:
+                            for epsilon in epsilons:
+                                for n_stable in n_stables:
+                                    for resetting_mode_value in resetting_mode: 
+                                        param_list.append((reset_rate, N, boundary_mode, learning_rate, gamma, epsilon, n_stable, learning_end_condition, resetting_mode_value, dimension))
 
 # print the number of parameter combinations (to debug)
 print(f"Total parameter combinations: {len(param_list)}")

@@ -20,6 +20,7 @@ parser.add_argument('--learning_end_condition', type=str, required=True)
 parser.add_argument('--resetting_mode', type=str, required=True)
 parser.add_argument('--N', type=int, required=True) # system size
 parser.add_argument('--boundary', type=str, default='fixed')
+parser.add_argument('--dimension', type=int, required=True)
 
 args = parser.parse_args()
 reset_rate = args.reset_rate
@@ -34,9 +35,10 @@ resetting_mode = args.resetting_mode
 N = args.N
 boundary_type = args.boundary
 learning_end_condition = args.learning_end_condition
+dim = args.dimension
 
 # parameters to keep fixed
-N_trials = 10 # number of trials to avg over
+N_trials = 100 # number of trials to avg over
 
 # create results directory
 os.makedirs('results', exist_ok=True)
@@ -57,10 +59,10 @@ def extend_vector(vec, target_length):
     return vec
 
 # function to execute a single combination of parameters
-def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, learning_end_condition, boundary_type):
+def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, learning_end_condition, boundary_type, dimension):
     print(f"Running for reset_rate={reset_rate}, size={N}, learning_rate={learning_rate}, gamma={gamma}, epsilon={epsilon}, resetdecay={reset_decay}, n_stable={n_stable_value}, learning_end_condition={learning_end_condition}")
     
-    output_file_avg = f"results/resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_numepisodes_{num_episodes}.csv"
+    output_file_avg = f"results/resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_numepisodes_{num_episodes}.csv"
     with open(output_file_avg, 'w') as f:
         pass  # wipe the average output file
 
@@ -72,13 +74,13 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
     ending_regret_sum = 0
 
     for trial in range(1, N_trials + 1):
-        output_file = f"results/resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}_numepisodes_{num_episodes}_trial_{trial}.csv"
+        output_file = f"results/resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}_numepisodes_{num_episodes}_trial_{trial}.csv"
         with open(output_file, 'w') as f:
             pass  # wipe individual output file
 
         print(f"  Trial {trial}...")
 
-        cmd = f"python learning_with_resets.py --reset_rate {reset_rate} --N {N} --boundary {boundary_type} --learning_rate {learning_rate} --gamma {gamma} --epsilon {epsilon} --n_stable {n_stable_value} --learning_end_condition {learning_end_condition} --reset_decay {reset_decay} --resetting_mode {resetting_mode} --num_episodes {num_episodes} --render_mode {render_mode}"
+        cmd = f"python learning_with_resets.py --dimension {dim} --reset_rate {reset_rate} --N {N} --boundary {boundary_type} --learning_rate {learning_rate} --gamma {gamma} --epsilon {epsilon} --n_stable {n_stable_value} --learning_end_condition {learning_end_condition} --reset_decay {reset_decay} --resetting_mode {resetting_mode} --num_episodes {num_episodes} --render_mode {render_mode}"
         try:
             run_command(cmd)
         except RuntimeError as e:
@@ -86,12 +88,12 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
             return
 
         # read vectors
-        reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-        epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-        length_vec_file = f"vectors/total_length_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-        regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-        training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-        ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_size_{N}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        length_vec_file = f"vectors/total_length_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+        ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
 
         reward_vec = np.load(reward_vec_file, allow_pickle=True)
         epilength_vec = np.load(epilength_vec_file, allow_pickle=True)
@@ -158,11 +160,15 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
     # normal sweep across resetting rates, with learning
     # log_file = 'results/parameter_sweep_log.csv'
 
-    log_file = f'log/parameter_sweep_log_{boundary_type}_adjustable.csv'
+    log_file = f'log/parameter_sweep_log_{boundary_type}.csv'
+
+    if dim == 1:
+        log_file = f'log/parameter_sweep_log_{boundary_type}_dimension_1.csv'
 
     total_regret_across_episodes = np.sum(regret_avg) # INTEGRATED regret over episodes
+    total_finallength_across_episodes = np.sum(length_avg) # integrated final path length (another kind of regret ig)
     with open(log_file, 'a') as f:              
-        f.write(f"{reset_rate},{N},{boundary_type},{learning_rate},{gamma},{epsilon},{n_stable_value},{reset_decay},{total_regret_across_episodes},{training_done_epi_avg},{ending_regret_avg},{epilength_avg[0]},{length_avg[0]},{max_length}\n") # there is the indexing since it's a vector
+        f.write(f"{reset_rate},{N},{boundary_type},{learning_rate},{gamma},{epsilon},{n_stable_value},{reset_decay},{total_regret_across_episodes},{total_finallength_across_episodes},{training_done_epi_avg},{ending_regret_avg},{epilength_avg[0]},{length_avg[0]},{max_length}\n") # there is the indexing since it's a vector
 
     # call plotting script
     cmd = f"python plotting.py --filename {output_file_avg}"
@@ -171,4 +177,4 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
     except RuntimeError as e:
         print(e)
 
-run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, learning_end_condition, boundary_type) # actually run the sweep
+run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, learning_end_condition, boundary_type, dim) # actually run the sweep

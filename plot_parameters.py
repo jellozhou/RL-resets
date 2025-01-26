@@ -2,9 +2,11 @@ import csv
 import matplotlib.pyplot as plt
 from collections import defaultdict
 import numpy as np
+from scipy.stats import linregress
 
 # Read data from CSV
-filename = "log/parameter_sweep_log_fixed_250.csv"
+filename = "log/parameter_sweep_log_fixed_dimension_1.csv"
+# filename = 'log/parameter_sweep_log_fixed_250.csv'
 data_fpt = defaultdict(list)  # Data for first passage time
 data_regret = defaultdict(list)  # Data for regret
 data_learning = defaultdict(list)  # Data for learning episode
@@ -61,7 +63,40 @@ def calculate_sweeping_average(x, y, window_size=20):
         averaged_y.append(np.mean(y[i:i + window_size]))
     return averaged_x, averaged_y
 
-# Generate plots for each system size
+    # rescaled FPT plot to hopefully see line
+for size in sorted(data_fpt.keys()):
+    # if size != 30:
+    #     continue
+    # First Passage Time Plot
+    values_fpt = sorted(data_fpt[size])  # Sort by resetting rate
+    reset_rates_fpt, fptimes = zip(*values_fpt)
+    print(reset_rates_fpt)
+    print(fptimes)
+    
+    min_fptime = min(fptimes)
+    min_rate = reset_rates_fpt[fptimes.index(min_fptime)]
+
+    # Rescale FPT
+    rescaled_fpt = (np.log(np.array(reset_rates_fpt) * np.array(fptimes) + 1))**2
+
+    # Perform Linear Fit
+    slope, intercept, r_value, p_value, std_err = linregress(reset_rates_fpt, rescaled_fpt)
+    print(f"Slope: {slope}, Intercept: {intercept}, R-squared: {r_value**2}")
+    
+    plt.figure(figsize=(6, 4))
+    plt.scatter(reset_rates_fpt, rescaled_fpt, color='blue', label="First Passage Time") 
+    plt.plot(reset_rates_fpt, slope * np.array(reset_rates_fpt) + intercept, color='orange', linestyle='--', label=f"Linear Fit (slope={slope:.2e})")
+    plt.xlabel("Resetting Rate")
+    plt.ylabel("Rescaled FPT")
+    # plt.xlim([0, 5e-5])
+    # plt.xscale("log")
+    # plt.yscale("log")
+    plt.title(f"System Size: {size} - Rescaled First Passage Time ({boundary_type}), nstable {N_stable}")
+    plt.legend()
+    plt.savefig(f"parameter_sweep_figs/size_{size}_rescaled_fpt_{boundary_type}_nstable_{N_stable}_learningend_{learning_end_value}.png")  # Save the figure
+    plt.show()
+
+# Normal FPT plot
 for size in sorted(data_fpt.keys()):
     # if size != 30:
     #     continue
@@ -193,6 +228,8 @@ for size in sorted(data_regret.keys()):
 
 plt.figure(figsize=(8, 6))
 plt.plot(system_sizes, min_rates, marker='o', linestyle='-', color='blue', label="optimal resetting rate")
+plt.xscale('log')
+plt.yscale('log')
 plt.xlabel("N")
 plt.ylabel("Resetting rate that minimizes regret")
 plt.legend()
