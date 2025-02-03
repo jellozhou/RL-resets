@@ -38,7 +38,7 @@ learning_end_condition = args.learning_end_condition
 dim = args.dimension
 
 # parameters to keep fixed
-N_trials = 100 # number of trials to avg over
+N_trials = 250 # number of trials to avg over
 
 # create results directory
 os.makedirs('results', exist_ok=True)
@@ -66,12 +66,20 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
     with open(output_file_avg, 'w') as f:
         pass  # wipe the average output file
 
-    reward_sum = None
-    epilength_sum = None
-    regret_sum = None
-    max_length = 0 # to track across trials
+    # reward_sum = None
+    # epilength_sum = None
+    # regret_sum = None
+    max_length = 1 # to track across trials; set to 1 and not 0 so vector[-1] works
+
+    # initialize vectors, extend later
+    reward_sum = np.zeros(max_length)
+    epilength_sum = np.zeros(max_length)
+    regret_sum = np.zeros(max_length)
+    length_sum = np.zeros(max_length)
+
     training_done_epi_sum = 0
     ending_regret_sum = 0
+    num_training_not_done = 0 # number of episodes in which training is not done
 
     for trial in range(1, N_trials + 1):
         output_file = f"results/resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable_value}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}_numepisodes_{num_episodes}_trial_{trial}.csv"
@@ -119,17 +127,17 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
 
         # accumulate values for averaging
         # if this is the first trial, initialize to vector of zeros
-        if reward_sum is None:
-            reward_sum = np.zeros(max_length)
-            epilength_sum = np.zeros(max_length)
-            regret_sum = np.zeros(max_length)
-            length_sum = np.zeros(max_length)
+        # if reward_sum is None:
+        #     reward_sum = np.zeros(max_length)
+        #     epilength_sum = np.zeros(max_length)
+        #     regret_sum = np.zeros(max_length)
+        #     length_sum = np.zeros(max_length)
 
         # Extend vectors to the maximum length encountered so far
-        reward_sum = extend_vector(reward_sum, len(reward_sum))
-        epilength_sum = extend_vector(epilength_sum, len(epilength_sum))
-        regret_sum = extend_vector(regret_sum, len(regret_sum))
-        length_sum = extend_vector(length_sum, len(length_sum))
+        reward_sum = extend_vector(reward_sum, max_length)
+        epilength_sum = extend_vector(epilength_sum, max_length)
+        regret_sum = extend_vector(regret_sum, max_length)
+        length_sum = extend_vector(length_sum, max_length)
 
         # Add the extended vectors
         reward_sum += reward_vec
@@ -137,8 +145,16 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
         # print("sum", epilength_sum) # debug
         length_sum += length_vec
         regret_sum += regret_vec
-        training_done_epi_sum += training_done_epi
+
+        # only add if training has been done -- this is a little worrisome though
+        if training_done_epi != -1:
+            training_done_epi_sum += training_done_epi
+
         ending_regret_sum += ending_regret
+
+        # add to training_not_done if training_done_epi = -1
+        if training_done_epi == -1:
+            num_training_not_done += 1
         print("Total regrets in last episodes:", ending_regret_sum)
 
     # calculate averages
@@ -168,7 +184,7 @@ def run_sweep(reset_rate, N, learning_rate, gamma, epsilon, n_stable_value, lear
     total_regret_across_episodes = np.sum(regret_avg) # INTEGRATED regret over episodes
     total_finallength_across_episodes = np.sum(length_avg) # integrated final path length (another kind of regret ig)
     with open(log_file, 'a') as f:              
-        f.write(f"{reset_rate},{N},{boundary_type},{learning_rate},{gamma},{epsilon},{n_stable_value},{reset_decay},{total_regret_across_episodes},{total_finallength_across_episodes},{training_done_epi_avg},{ending_regret_avg},{epilength_avg[0]},{length_avg[0]},{max_length}\n") # there is the indexing since it's a vector
+        f.write(f"{reset_rate},{N},{boundary_type},{num_training_not_done},{learning_rate},{gamma},{epsilon},{n_stable_value},{reset_decay},{total_regret_across_episodes},{total_finallength_across_episodes},{training_done_epi_avg},{ending_regret_avg},{epilength_avg[0]},{length_avg[0]},{max_length}\n") # there is the indexing since it's a vector
 
     # call plotting script
     cmd = f"python plotting.py --filename {output_file_avg}"

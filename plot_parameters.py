@@ -5,7 +5,7 @@ import numpy as np
 from scipy.stats import linregress
 
 # Read data from CSV
-filename = "log/parameter_sweep_log_fixed_dimension_1.csv"
+filename = "log/averaging_log.csv"
 # filename = 'log/parameter_sweep_log_fixed_250.csv'
 data_fpt = defaultdict(list)  # Data for first passage time
 data_regret = defaultdict(list)  # Data for regret
@@ -32,7 +32,8 @@ with open(filename, 'r') as file:
         first_passage_time = float(row[-3])
         # print(first_passage_time)
         first_complete_path = float(row[-2]) # length[0]
-        N_stable = int(row[6])
+        N_stable = int(row[7]) # for new format with number of un-learned trials
+        # N_stable = 0 # for old format
         boundary_type = row[2]
         learning_episode = float(row[-5])
         max_length = int(row[-1])
@@ -82,7 +83,7 @@ for size in sorted(data_fpt.keys()):
     # Perform Linear Fit
     slope, intercept, r_value, p_value, std_err = linregress(reset_rates_fpt, rescaled_fpt)
     print(f"Slope: {slope}, Intercept: {intercept}, R-squared: {r_value**2}")
-    
+
     plt.figure(figsize=(6, 4))
     plt.scatter(reset_rates_fpt, rescaled_fpt, color='blue', label="First Passage Time") 
     plt.plot(reset_rates_fpt, slope * np.array(reset_rates_fpt) + intercept, color='orange', linestyle='--', label=f"Linear Fit (slope={slope:.2e})")
@@ -98,6 +99,8 @@ for size in sorted(data_fpt.keys()):
 
 # Normal FPT plot
 for size in sorted(data_fpt.keys()):
+    gamma = 1.5936
+    r_opt = gamma**2 / slope
     # if size != 30:
     #     continue
     # First Passage Time Plot
@@ -109,6 +112,7 @@ for size in sorted(data_fpt.keys()):
     
     plt.figure(figsize=(6, 4))
     plt.scatter(reset_rates_fpt, fptimes, color='blue', label="First Passage Time")
+    plt.vlines(r_opt, ymin = min(fptimes), ymax = max(fptimes))
     if calculate_average:
         avg_x, avg_y = calculate_sweeping_average(reset_rates_fpt, fptimes)
         plt.plot(avg_x, avg_y, color='orange', label="Sweeping Average")
