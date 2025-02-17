@@ -62,6 +62,7 @@ def main():
     parser.add_argument('--boundary', type=str, default='fixed')
     parser.add_argument('--learning_end_condition', type=str, required=True) # options: QStable (N end-of-episodes at which the relative Q-table values are fixed) and threshold (path length without exploration is < 1.1 times taxicab)
     parser.add_argument('--dimension', type=int, required=True) # options: 1 and 2
+    parser.add_argument('--trial_num', type=int, required=True)
 
     args = parser.parse_args()
     reset_rate = args.reset_rate
@@ -70,6 +71,7 @@ def main():
     epsilon = args.epsilon
     num_episodes = args.num_episodes
     learning_end_condition = args.learning_end_condition
+    trial_num = args.trial_num
 
     # parse render mode argument
     if args.render_mode == "None":
@@ -127,14 +129,14 @@ def main():
     total_regret_vec = np.empty(num_episodes)
 
     # initialize reward, regret, epilength vector filenames before we modify the reset_rate, epsilon, etc
-    total_reward_vec_file = f"vectors/total_reward_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_epilength_vec_file = f"vectors/total_epilength_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_reward_vec_file = f"vectors/total_reward_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_epilength_vec_file = f"vectors/total_epilength_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
     
     # distinguish between episode length and LENGTH, which resets every reset (i.e. it is the eventual path from the start to the goal that the agent finds)
-    total_length_vec_file = f"vectors/total_length_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_regret_vec_file = f"vectors/total_regret_vec_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_training_done_epi_file = f"vectors/training_done_epi_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    ending_regret_file = f"vectors/ending_regret_file_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_length_vec_file = f"vectors/total_length_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_regret_vec_file = f"vectors/total_regret_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_training_done_epi_file = f"vectors/training_done_epi_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    ending_regret_file = f"vectors/ending_regret_file_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
 
     if dim == 2:
         env = gym.make(
@@ -254,7 +256,9 @@ def main():
                         break
 
                 # if done within 1.1 * taxicab, then learning has "completed" and we can turn it off
-                if done and QTable_direction_incorrect <= (max_num_steps - taxicab_length): # roughly the same tolerance for the QTable and step lengths
+                if done and QTable_direction_incorrect <= max_num_steps // 2: 
+                # if done:
+                # if done and QTable_direction_incorrect <= (max_num_steps - taxicab_length): # roughly the same tolerance for the QTable and step lengths
                     training_done = True
                     training_done_epi = n_epi
                     print(f"Training completed at episode {training_done_epi}")
