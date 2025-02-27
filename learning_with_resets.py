@@ -21,20 +21,12 @@ from learning_algorithms.QLearn import QLearn
 # no obstacles
 obstacle_prob = 0. # prob that cell in box initialized as obstacle
 
-# large system length
-total_length = int(2e3) # is this large enough? 
-# total_length = 50 # to visualize
+# # large system length
+# total_length = int(2e3) # is this large enough? 
+# # total_length = 50 # to visualize
 
-def create_array_2D(total_length, obstacle_prob, start_x, start_y, goal_x, goal_y):
-    # Initialize an N x N array filled with zeros
-    arr = np.random.choice([0, 1], size=(total_length, total_length), p=[1 - obstacle_prob, obstacle_prob])
-
-    # iterate until there is a path from start to goal
-    # this returns a "maximum recursion depth exceeded" error for large system sizes, and is also unnecessary in our setup
-    # while find_path(arr, (start_x, start_y), (goal_x, goal_y)) == False:
-    #     arr = np.random.choice([0, 1], size=(N, N), p=[1 - obstacle_prob, obstacle_prob])
-
-    # Convert the array to the string form
+def create_array_2D(system_size, obstacle_prob, start_x, start_y, goal_x, goal_y):
+    arr = np.random.choice([0, 1], size=(system_size, system_size), p=[1 - obstacle_prob, obstacle_prob])
     return [''.join(map(str, row)) for row in arr]
 
 def create_array_1D(total_length, obstacle_prob, start_s, goal_s):
@@ -43,6 +35,18 @@ def create_array_1D(total_length, obstacle_prob, start_s, goal_s):
 
     # Convert the array to the string form
     return [''.join(map(str, row)) for row in arr]
+
+def adjust_reset_rate_and_epsilon(reset_decay, training_done, reset_rate, q):
+    if reset_decay == 'linear':
+        reset_rate = 0.0
+        q.epsilon = 0.0
+    elif reset_decay == 'twomodes' and training_done:
+        reset_rate = 0.0
+        q.epsilon = 0.0
+    elif reset_decay == 'none':
+        # Do not change reset_rate or epsilon
+        pass
+    return reset_rate, q.epsilon
 
 def main():
 
@@ -59,10 +63,11 @@ def main():
     parser.add_argument('--n_stable', type=int, default=20)
     parser.add_argument('--resetting_mode', type=str, required=True) # resetting mode -- position / memory
     parser.add_argument('--N', type=int, required=True) # system size
-    parser.add_argument('--boundary', type=str, default='fixed')
+    parser.add_argument('--system_size', type=int, required=True)
     parser.add_argument('--learning_end_condition', type=str, required=True) # options: QStable (N end-of-episodes at which the relative Q-table values are fixed) and threshold (path length without exploration is < 1.1 times taxicab)
     parser.add_argument('--dimension', type=int, required=True) # options: 1 and 2
     parser.add_argument('--trial_num', type=int, required=True)
+    parser.add_argument('--evaluate_full_training', action='store_true') # flag to evaluate full training
 
     args = parser.parse_args()
     reset_rate = args.reset_rate
@@ -72,6 +77,7 @@ def main():
     num_episodes = args.num_episodes
     learning_end_condition = args.learning_end_condition
     trial_num = args.trial_num
+    evaluate_full_training = args.evaluate_full_training
 
     # parse render mode argument
     if args.render_mode == "None":
@@ -83,37 +89,28 @@ def main():
     # dimension options
     N = args.N # system size
     dim = args.dimension
-    boundary_type = args.boundary
+    system_size = args.system_size
 
     if dim == 1:
         system_geom = 'SimpleLineReset'
-        start_s = int(total_length//2 - N//2)
-        goal_s = int(total_length//2 + N//2)
+        start_s = int(system_size//2 - N//2)
+        goal_s = int(system_size//2 + N//2)
         taxicab_length = goal_s - start_s
 
     elif dim == 2:
-        # convert starting & goal (x,y) to state
-        # start_x = int(N//3)
-        # start_y = int(N//3)
-        # goal_x = int(2*N//3)
-        # goal_y = int(2*N//3)
-
-        start_x = int(total_length / 2 - N/2)
-        start_y = int(total_length / 2 - N/2)
-        goal_x = int(total_length / 2 + N/2)
-        goal_y = int(total_length / 2 + N/2)
+        start_x = int(system_size // 3)
+        start_y = int(system_size // 3)
+        goal_x = int(2 * system_size // 3)
+        goal_y = int(2 * system_size // 3)
 
         # unravel to state space
-        start_s = start_x + start_y*total_length
-        goal_s = goal_x + goal_y*total_length
+        start_s = start_x + start_y*system_size
+        goal_s = goal_x + goal_y*system_size
 
         # print(start_x, start_y, goal_x, goal_y)
 
         # for 2D, options for system geometry
-        if boundary_type == 'fixed':
-            system_geom = 'SimpleGridReset-v0'
-        elif boundary_type == 'periodic':
-            system_geom = 'SimpleGridResetPBC-v0'
+        system_geom = 'SimpleGridReset-v0'  
 
         # define optimal solution to later calculate regret
         taxicab_length = np.absolute(goal_x - start_x) + np.absolute(goal_y - start_y)
@@ -127,28 +124,30 @@ def main():
     total_epilength_vec = np.empty(num_episodes)
     total_length_vec = np.empty(num_episodes)
     total_regret_vec = np.empty(num_episodes)
+    total_testing_epilength_vec = np.empty(num_episodes)
 
     # initialize reward, regret, epilength vector filenames before we modify the reset_rate, epsilon, etc
-    total_reward_vec_file = f"vectors/total_reward_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_epilength_vec_file = f"vectors/total_epilength_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_reward_vec_file = f"vectors/total_reward_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_systemsize_{system_size}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_epilength_vec_file = f"vectors/total_epilength_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_systemsize_{system_size}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
     
     # distinguish between episode length and LENGTH, which resets every reset (i.e. it is the eventual path from the start to the goal that the agent finds)
-    total_length_vec_file = f"vectors/total_length_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_regret_vec_file = f"vectors/total_regret_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    total_training_done_epi_file = f"vectors/training_done_epi_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
-    ending_regret_file = f"vectors/ending_regret_file_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_boundary_{boundary_type}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_length_vec_file = f"vectors/total_length_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_systemsize_{system_size}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_regret_vec_file = f"vectors/total_regret_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_systemsize_{system_size}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_training_done_epi_file = f"vectors/training_done_epi_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_systemsize_{system_size}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    ending_regret_file = f"vectors/ending_regret_file_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_systemsize_{system_size}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
+    total_testing_epilength_vec_file = f"vectors/total_testing_epilength_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_systemsize_{system_size}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}.npy"
 
     if dim == 2:
         env = gym.make(
             system_geom, 
-            obstacle_map=create_array_2D(total_length, obstacle_prob, start_x, start_y, goal_x, goal_y), 
+            obstacle_map=create_array_2D(system_size, obstacle_prob, start_x, start_y, goal_x, goal_y), 
             render_mode=render_mode_arg
         )
 
     elif dim == 1:
         env = gym.make(
             system_geom, 
-            obstacle_map=create_array_1D(total_length, obstacle_prob, start_s, goal_s), 
+            obstacle_map=create_array_1D(system_size, obstacle_prob, start_s, goal_s), 
             render_mode=render_mode_arg
         )
     
@@ -161,7 +160,7 @@ def main():
 
     training_done_epi = -1 # what to do if training never done?? 
     for n_epi in range(num_episodes):
-        print("Current episode number: ", n_epi)
+        # print("Current episode number: ", n_epi) # too verbose
         # initialize reward, episode length, regret
         reward_this_episode = 0
         epilength_this_episode = 0
@@ -174,13 +173,7 @@ def main():
         # q.epsilon = max(0.01, max_exp_rate - 0.01*(n_epi/200)) # if annealing
 
         # decay in reset rates
-        if reset_decay == 'linear':
-            reset_rate = 0.0 # edit!! add the correct scheme!!
-            q.epsilon = 0.0
-        elif reset_decay == 'twomodes':
-            if training_done == True:
-                reset_rate = 0.0
-                q.epsilon = 0.0 # also turn off exploration
+        reset_rate, q.epsilon = adjust_reset_rate_and_epsilon(reset_decay, training_done, reset_rate, q)
 
         s, _ = env.reset(options={'start_loc':start_s, 'goal_loc':goal_s, 'reset_rate':reset_rate})
         done = False # the environment automatically sets done = True when the goal state is reached
@@ -208,6 +201,10 @@ def main():
             reward_this_episode -= 1 # simple reward fn. decreases with #steps
 
             if done:
+                # Ensure epilength_this_episode is non-negative
+                if epilength_this_episode < 0:
+                    epilength_this_episode = 0
+
                 # print(epilength_this_episode) # debug
                 total_reward_vec[n_epi] = reward_this_episode
                 total_epilength_vec[n_epi] = epilength_this_episode
@@ -228,8 +225,8 @@ def main():
                 QTable_direction_incorrect = 0 # increment upwards
                 max_num_steps = int(taxicab_length * 1.1) # this needs to be exactly the taxicab length -- otherwise possible for training to never be done
                 testing_step_no = 0 # incremented up
-
-                while testing_step_no <= max_num_steps:
+                
+                while (not done if evaluate_full_training else testing_step_no <= max_num_steps):
                     # run another episode
                     a = q.chooseAction(s)
                     s_prime, r, done, truncated, info = env.step(a) # resetting is encoded into this
@@ -241,27 +238,17 @@ def main():
                         if q.QDirectional(s) == False:
                             QTable_direction_incorrect += 1
 
-                    # DEBUGGING
-                    # QTable_direction_correct = QTable_direction_correct and q.QDirectional(s) # only true if everything is true # old, and doesn't allow for error
-                    # print(testing_step_no) # debug
-                    # print("Q-table count:", q.getCount(s)) # debug
-                    # print(q.QDirectional(s)) # debug
-
-                    # if q.QDirectional(s) == False: # debug
-                    #     q.print_Q_table(s)
-
                     s = s_prime
-                    # debug: 
                     if done: 
                         break
 
                 # if done within 1.1 * taxicab, then learning has "completed" and we can turn it off
                 if done and QTable_direction_incorrect <= max_num_steps // 2: 
-                # if done:
-                # if done and QTable_direction_incorrect <= (max_num_steps - taxicab_length): # roughly the same tolerance for the QTable and step lengths
                     training_done = True
                     training_done_epi = n_epi
                     print(f"Training completed at episode {training_done_epi}")
+
+                total_testing_epilength_vec[n_epi] = testing_step_no
 
             # can also check whether training is done using the condition of subsequent stability of the Q-table
             elif learning_end_condition == 'QStable':
@@ -276,8 +263,8 @@ def main():
 
                 # save the max q indices to compare Q tables
                 q.save_max_q_indices()
-                # DEBUG: print the Q-table at the end of QStable to check if the maximum is unique
 
+                total_testing_epilength_vec[n_epi] = testing_step_no if 'testing_epilength_this_episode' in locals() else total_epilength_vec[n_epi]
 
     # save stored vectors to feed into bash script, which then writes them to one CSV file
     np.save(total_reward_vec_file, total_reward_vec)
@@ -286,6 +273,7 @@ def main():
     np.save(total_length_vec_file, total_length_vec)
     np.save(total_regret_vec_file, total_regret_vec)
     np.save(total_training_done_epi_file, training_done_epi)
+    np.save(total_testing_epilength_vec_file, total_testing_epilength_vec)
     # save the ending regret
     np.save(ending_regret_file, regret_this_episode) # ending regret is the last regret_this_episode
 

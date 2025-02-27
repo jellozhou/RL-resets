@@ -6,7 +6,7 @@ from scipy.stats import linregress
 from scipy.optimize import minimize_scalar, root_scalar
 
 # Read data from CSV
-filename = "log/parameter_sweep_log_fixed_fpt_test_fewpoints.csv"
+filename = "log/test.csv"
 data_fpt = defaultdict(list)  # Data for first passage time
 data_regret = defaultdict(list)  # Data for regret
 data_learning = defaultdict(list)  # Data for learning episode
@@ -49,12 +49,14 @@ with open(filename, 'r') as file:
         system_size = int(row[1])
         first_passage_time = float(row[-3])
         first_complete_path = float(row[-2])  # length[0]
+        # N_stable = int(row[6]) # old format
         N_stable = int(row[7])  # for new format with number of un-learned trials
         boundary_type = row[2]
         learning_episode = float(row[-5])
         max_length = int(row[-1])
         ending_regret = float(row[-4])
-        regret = float(row[-6]) + (max_length_across_trials - max_length) * ending_regret  # Adjust for different max lengths
+        total_final_length = float(row[-6]) # analogous to regret but for final length
+        regret = float(row[-7]) + (max_length_across_trials - max_length) * ending_regret  # Adjust for different max lengths
 
         # only add rows where learning episode != -1.0
         if learning_episode != 0:
@@ -67,6 +69,8 @@ with open(filename, 'r') as file:
 # Calculate averages for all data
 averaged_fpt = average_data(data_fpt)
 averaged_regret = average_data(data_regret)
+# print(data_regret)
+print(averaged_regret)
 averaged_learning = average_data(data_learning)
 averaged_fcp = average_data(data_fcp)
 
@@ -124,4 +128,103 @@ for size in sorted(averaged_fpt.keys()):
     plt.savefig(f"parameter_sweep_figs/size_{size}_first_complete_path_averaged_{boundary_type}_nstable_{N_stable_value}_learningend_{learning_end_value}.png")
     plt.show()
 
+    # experimental: plot regret over first passage time, versus reset rate
+    # Regret over First Passage Time vs. Resetting Rate
+    regret_over_fpt = [r / f if f != 0 else None for r, f in zip(regrets, fptimes)]
+
+    plt.figure(figsize=(6, 4))
+    plt.scatter(reset_rates_fpt, regret_over_fpt, color='red', label="Regret / First Passage Time")
+    plt.xlabel("Resetting Rate")
+    plt.ylabel("Regret / First Passage Time")
+    plt.title(f"System Size: {size} - Regret / FPT ({boundary_type}), nstable {N_stable_value}")
+    plt.legend()
+    plt.savefig(f"parameter_sweep_figs/size_{size}_regret_over_fpt_averaged_{boundary_type}_nstable_{N_stable_value}_learningend_{learning_end_value}.png")
+    plt.show()
+
+    # experimental: plot regret over first passage time, multiplied by first complete path length
+    # Compute (Regret / First Passage Time) * First Complete Path Length
+    regret_over_fpt_times_fcp = [
+        (r / f) * p if f != 0 else None for r, f, p in zip(regrets, fptimes, first_complete_paths)
+    ]
+
+    # plt.figure(figsize=(6, 4))
+    # plt.scatter(reset_rates_fpt, regret_over_fpt_times_fcp, color='red', 
+    #             label="(Regret / First Passage Time) * First Complete Path Length")
+    # plt.xlabel("Resetting Rate")
+    # plt.ylabel("(Regret / FPT) * First Complete Path Length")
+    # plt.title(f"System Size: {size} - Regret/FPT * FCP ({boundary_type}), nstable {N_stable_value}")
+    # plt.legend()
+    # plt.savefig(f"parameter_sweep_figs/size_{size}_regret_over_fpt_times_fcp_averaged_{boundary_type}_nstable_{N_stable_value}_learningend_{learning_end_value}.png")
+    # plt.show()
+
+    # # Compute (Reset Rate * First Passage Time) / First Complete Path Length
+    # reset_rate_times_fpt_over_fcp = [
+    #     (r * f) / p if p != 0 else None for r, f, p in zip(reset_rates_fpt, fptimes, first_complete_paths)
+    # ]
+
+    # plt.figure(figsize=(6, 4))
+    # plt.scatter(reset_rates_fpt, reset_rate_times_fpt_over_fcp, color='orange', 
+    #             label="(Reset Rate * First Passage Time) / First Complete Path Length")
+    # plt.xlabel("Resetting Rate")
+    # plt.ylabel("(Reset Rate * FPT) / First Complete Path Length")
+    # plt.title(f"System Size: {size} - (Reset Rate * FPT) / FCP ({boundary_type}), nstable {N_stable_value}")
+    # plt.legend()
+    # plt.savefig(f"parameter_sweep_figs/size_{size}_resetrate_times_fpt_over_fcp_averaged_{boundary_type}_nstable_{N_stable_value}_learningend_{learning_end_value}.png")
+    # plt.show()
+
+
 # If needed, add more plots for other data types.
+
+def plot_performance_metrics(filename):
+    """
+    Plot performance metrics (reward, episode length, regret) from a CSV file.
+    
+    Args:
+        filename (str): Path to the CSV file containing the results.
+    """
+    # Read data from CSV
+    with open(filename, 'r') as file:
+        reader = csv.reader(file)
+        rows = list(reader)
+    
+    # Extract data
+    episodes = np.arange(len(rows))
+    rewards = np.array([float(row[0]) for row in rows])
+    episode_lengths = np.array([float(row[1]) for row in rows])
+    regrets = np.array([float(row[2]) for row in rows])
+    
+    # Plot reward per episode
+    plt.figure()
+    plt.plot(episodes, rewards, label='Reward')
+    plt.xlabel('Episode')
+    plt.ylabel('Reward')
+    plt.title('Reward per Episode')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('figs/reward_per_episode.png')
+    
+    # Plot episode length per episode
+    plt.figure()
+    plt.plot(episodes, episode_lengths, label='Episode Length')
+    plt.xlabel('Episode')
+    plt.ylabel('Episode Length')
+    plt.title('Episode Length per Episode')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('figs/episode_length_per_episode.png')
+    
+    # Plot regret per episode
+    plt.figure()
+    plt.plot(episodes, regrets, label='Regret')
+    plt.xlabel('Episode')
+    plt.ylabel('Regret')
+    plt.title('Regret per Episode')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('figs/regret_per_episode.png')
+    
+    plt.show()
+
+# Example usage
+if __name__ == "__main__":
+    plot_performance_metrics('log/parameter_sweep_log_test.csv')
