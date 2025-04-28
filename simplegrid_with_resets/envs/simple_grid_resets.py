@@ -108,8 +108,6 @@ class SimpleGridEnvResets(Env):
         self.start_xy = self.parse_state_option('start_loc', options)
         self.goal_xy = self.parse_state_option('goal_loc', options)
         self.reset_rate = self.parse_state_option('reset_rate', options)
-        # self.resetting_mode = self.parse_state_option('resetting_mode', options) # resetting mode
-        # self.position_reset = self.parse_state_option('position_reset', options) # position reset = true/false
 
         # initialise internal vars
         self.agent_xy = self.start_xy
@@ -295,9 +293,11 @@ class SimpleGridEnvResets(Env):
         Get the reward of a given cell.
         """
         if not self.is_in_bounds(x, y):
-            return -1.0
+            # return -1.0
+            return 0.0
         elif not self.is_free(x, y):
-            return -1.0
+            # return -1.0
+            return 0.0
         elif (x, y) == self.goal_xy:
             return 1.0
         else:
