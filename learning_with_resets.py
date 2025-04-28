@@ -37,17 +37,18 @@ def create_array_1D(total_length, obstacle_prob, start_s, goal_s):
     # Convert the array to the string form
     return [''.join(map(str, row)) for row in arr]
 
-def adjust_reset_rate_and_epsilon(reset_decay, training_done, reset_rate, q):
-    if reset_decay == 'linear':
-        reset_rate = 0.0
-        q.epsilon = 0.0
-    elif reset_decay == 'twomodes' and training_done:
-        reset_rate = 0.0
-        q.epsilon = 0.0
-    elif reset_decay == 'none':
-        # Do not change reset_rate or epsilon
-        pass
-    return reset_rate, q.epsilon
+# this no longer matters
+# def set_reset_rate_and_epsilon(reset_decay, training_done, reset_rate, q):
+#     if reset_decay == 'linear':
+#         reset_rate = 0.0
+#         q.epsilon = 0.0
+#     elif reset_decay == 'twomodes' and training_done:
+#         reset_rate = 0.0
+#         q.epsilon = 0.0
+#     elif reset_decay == 'none':
+#         # Do not change reset_rate or epsilon
+#         pass
+#     return reset_rate, q.epsilon
 
 def main():
 
@@ -125,14 +126,12 @@ def main():
     n_stable = args.n_stable
     resetting_mode = args.resetting_mode
     
-    total_reward_vec = np.empty(num_episodes)
     total_epilength_vec = np.empty(num_episodes)
     total_length_vec = np.empty(num_episodes)
     total_regret_vec = np.empty(num_episodes)
     total_testing_epilength_vec = np.empty(num_episodes)
 
     # initialize reward, regret, epilength vector filenames before we modify the reset_rate, epsilon, etc
-    total_reward_vec_file = f"vectors/total_reward_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_systemsize_{system_size}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}_rwd_{reward}.npy"
     total_epilength_vec_file = f"vectors/total_epilength_vec_trialnum_{trial_num}_resetrate_{reset_rate}_size_{N}_dimension_{dim}_systemsize_{system_size}_learningrate_{learning_rate}_gamma_{gamma}_epsilon_{epsilon}_nstable_{n_stable}_learningend_{learning_end_condition}_resetdecay_{reset_decay}_resettingmode_{resetting_mode}_rwd_{reward}.npy"
     
     # distinguish between episode length and LENGTH, which resets every reset (i.e. it is the eventual path from the start to the goal that the agent finds)
@@ -157,141 +156,94 @@ def main():
         )
     
     actions = list(env.unwrapped.MOVES.keys()) # actions defined in environment, then fed into QLearn
-    q = QLearn(actions, epsilon, learning_rate, gamma, strategy=args.strategy)  # Initialize with strategy
+    q = QLearn(actions, epsilon, learning_rate, gamma, strategy=strategy)  # Initialize with strategy
     training_done = False # whether, at the given episode, training has completed
 
     if learning_end_condition == "QStable":
         stable_window = deque(maxlen=n_stable)
 
-    training_done_epi = -1 # what to do if training never done?? 
+    training_done_epi = -1 
+    consecutive_success = 0  # Counter for consecutive episodes meeting the condition
+
     for n_epi in range(num_episodes):
-        # print("Current episode number: ", n_epi) # too verbose
-        # initialize reward, episode length, regret
-        reward_this_episode = 0
-        epilength_this_episode = 0
-        length_this_episode = 0
-        # is there any value in calculating the step-wise integrated regret?
-        regret_this_episode = 0
+        # First run a "testing episode" with epsilon = 0.0 and reset rate = 0.0, and evaluate epilength
+        q.epsilon = 0.0  # Turn off exploration: static policy
+        s, _ = env.reset(options={'start_loc': start_s, 'goal_loc': goal_s, 'reset_rate': 0.0})
+        done = False
+        testing_epilength_this_episode = 0
+        QTable_direction_incorrect = 0
 
-        # set epsilon values according to the decay option
-        q.epsilon = epsilon # no annealing yet
-        # q.epsilon = max(0.01, max_exp_rate - 0.01*(n_epi/200)) # if annealing
-
-        # decay in reset rates
-        reset_rate, q.epsilon = adjust_reset_rate_and_epsilon(reset_decay, training_done, reset_rate, q)
-
-        s, _ = env.reset(options={'start_loc':start_s, 'goal_loc':goal_s, 'reset_rate':reset_rate})
-        done = False # the environment automatically sets done = True when the goal state is reached
-
-        # training (not testing) episode
         while not done:
-            a = q.chooseAction(s)  # Updated to use the strategy
-            s_prime, r, done, truncated, info = env.step(a) # resetting is encoded into this
-            reset_last_step = info['reset_last_step']
-
-            # if reset last step, and if resetting memory, then wipe memory
-            if reset_last_step == True:
-                length_this_episode = 0 # reset back to 0
-                if resetting_mode == 'memory':
-                    q = QLearn(actions, epsilon, learning_rate, gamma, strategy) # wipe memory and initialize again
-                # never learn after resetting, but i suspect that doesn't matter. 
-
-            elif reset_last_step == False: # everything goes normally
-                q.learn(s, a, r, s_prime)
-                length_this_episode += 1
-
+            a = q.chooseAction(s)  # Choose action without exploration
+            s_prime, r, done, truncated, info = env.step(a)
             s = s_prime
-            epilength_this_episode += 1
-            # reward_this_episode += r * gamma**(epilength_this_episode) # DISCOUNTED reward is a more accurate metric
-            reward_this_episode -= 1 # simple reward fn. decreases with #steps
+            testing_epilength_this_episode += 1
+            if dim == 2 and not q.QDirectional(s):  # Check QDirectional only for 2D systems
+                QTable_direction_incorrect += 1
 
-            if done:
-                # Ensure epilength_this_episode is non-negative
-                if epilength_this_episode < 0:
-                    epilength_this_episode = 0
+        total_testing_epilength_vec[n_epi] = testing_epilength_this_episode
 
-                # print(epilength_this_episode) # debug
-                total_reward_vec[n_epi] = reward_this_episode
-                total_epilength_vec[n_epi] = epilength_this_episode
-                total_length_vec[n_epi] = length_this_episode
-                regret_this_episode = rwd_opt - reward_this_episode
-                total_regret_vec[n_epi] = regret_this_episode
-                break
+        # Evaluate whether training success condition is met
+        success = (
+            learning_end_condition == "threshold"
+            and testing_epilength_this_episode <= taxicab_length * 1.025
+            and (dim != 2 or QTable_direction_incorrect <= 1)
+        )
 
-        # code for evaluating training: evaluate only if training not yet done, or if we want to evaluate full training
-        if training_done == False or evaluate_full_training:
-            # do another run with exploration and resetting set to 0 to test how good the noiseless solution is
-            if learning_end_condition == 'threshold':
-                q.epsilon = 0.0 # also turn off exploration
+        if success:
+            consecutive_success += 1
+        else:
+            consecutive_success = 0  # Reset on failure
 
-                # turn off resetting for the test runs
-                s, _ = env.reset(options={'start_loc':start_s, 'goal_loc':goal_s, 'reset_rate':0.0})
-                done = False # the environment automatically sets done = True when the goal state is reached
-                QTable_direction_incorrect = 0 # increment upwards
-                max_num_steps = int(taxicab_length * 1.1) # this needs to be exactly the taxicab length -- otherwise possible for training to never be done
-                testing_step_no = 0 # incremented up
-                
-                while (not done if evaluate_full_training else testing_step_no <= max_num_steps):
-                    # run another episode
-                    a = q.chooseAction(s)  # Updated to use the strategy
-                    s_prime, r, done, truncated, info = env.step(a) # resetting is encoded into this
-                    testing_step_no += 1
-                    # print(testing_step_no) # debug
+        # Declare training done after 5 consecutive successes
+        if consecutive_success >= 5:
+            training_done = True
+            training_done_epi = n_epi
 
-                    # only check directionality for 2D systems:
-                    # for 1D QTable_direction_incorrect stays at 0, which automatically passes the later check
-                    if dim == 2:
-                        if q.QDirectional(s) == False:
-                            QTable_direction_incorrect += 1
+        # if training done, then save testing_epilength as epilength, length, and testing epilength, and regret accordingly
+        if training_done:
+            total_epilength_vec[n_epi] = testing_epilength_this_episode
+            total_length_vec[n_epi] = testing_epilength_this_episode
+            regret_this_episode = rwd_opt - (-1 * testing_epilength_this_episode)
+            total_regret_vec[n_epi] = regret_this_episode
+        
+        else: # if training not done, then run a training episode
+            q.epsilon = epsilon  # Set exploration rate
+            s, _ = env.reset(options={'start_loc': start_s, 'goal_loc': goal_s, 'reset_rate': reset_rate})
+            done = False
+            reward_this_episode = 0
+            epilength_this_episode = 0
+            length_this_episode = 0
 
-                    s = s_prime
-                    if done: 
-                        break
+            while not done:
+                a = q.chooseAction(s)  # Choose action with exploration
+                s_prime, r, done, truncated, info = env.step(a)
+                reset_last_step = info['reset_last_step']
 
-                # print(testing_step_no) # debug
+                if reset_last_step:
+                    length_this_episode = 0  # Reset path length
 
-                # if done within 1.1 * taxicab, then learning has "completed" and we can turn it off
-                if done and QTable_direction_incorrect <= max_num_steps // 4: # rather lax threshold but it works
-                    training_done = True
-                    training_done_epi = n_epi
-                    # print(f"Training completed at episode {training_done_epi}") # debug
+                else:
+                    q.learn(s, a, r, s_prime)  # Update Q-table
+                    length_this_episode += 1
 
-                total_testing_epilength_vec[n_epi] = testing_step_no
-                # print("debug: number of steps", testing_step_no) # debug
+                s = s_prime
+                epilength_this_episode += 1
+                reward_this_episode -= 1  # Decrease reward with each step
 
-            # can also check whether training is done using the condition of subsequent stability of the Q-table
-            elif learning_end_condition == 'QStable':
-                # check if Q-values are stable after this given episode
-                stable_now = q.QStable()
-                stable_window.append(stable_now)
-
-                if len(stable_window) == n_stable and all(stable_window):
-                    training_done = True
-                    training_done_epi = n_epi - n_stable
-                    # print(f"Training completed at episode {training_done_epi}") # debug
-
-                # save the max q indices to compare Q tables
-                q.save_max_q_indices()
-
-                total_testing_epilength_vec[n_epi] = testing_step_no if 'testing_epilength_this_episode' in locals() else total_epilength_vec[n_epi]
-
-    # Populate total_testing_epilength_vec with the last non-zero value for empty or zero values
-    last_non_zero_value = None
-    for i in range(num_episodes):
-        if total_testing_epilength_vec[i] != 0:
-            last_non_zero_value = total_testing_epilength_vec[i]
-        elif last_non_zero_value is not None:
-            total_testing_epilength_vec[i] = last_non_zero_value
+                if done:
+                    # print('epilength', epilength_this_episode)  # debug
+                    total_epilength_vec[n_epi] = epilength_this_episode
+                    total_length_vec[n_epi] = length_this_episode
+                    regret_this_episode = rwd_opt - reward_this_episode
+                    total_regret_vec[n_epi] = regret_this_episode
 
     # save stored vectors to feed into bash script, which then writes them to one CSV file
-    np.save(total_reward_vec_file, total_reward_vec)
-    # print(total_epilength_vec) # debug
     np.save(total_epilength_vec_file, total_epilength_vec)
     np.save(total_length_vec_file, total_length_vec)
     np.save(total_regret_vec_file, total_regret_vec)
     np.save(total_training_done_epi_file, training_done_epi)
     np.save(total_testing_epilength_vec_file, total_testing_epilength_vec)
-    # save the ending regret
     np.save(ending_regret_file, regret_this_episode) # ending regret is the last regret_this_episode
 
     env.close()

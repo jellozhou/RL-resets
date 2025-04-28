@@ -46,7 +46,7 @@ strategy = args.strategy
 reward = args.rwd
 
 # parameters to keep fixed
-N_trials = 200 # number of trials to avg over
+N_trials = 1000 # number of trials to avg over
 
 # create results directory
 os.makedirs('results', exist_ok=True)
